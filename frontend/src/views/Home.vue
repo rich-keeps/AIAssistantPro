@@ -9,12 +9,21 @@
         :on-success="handleUploadSuccess"
         :on-error="handleUploadError"
         :before-upload="beforeUpload"
+        :disabled="uploading"
         accept=".xlsx,.xls"
       >
-        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-        <div class="el-upload__text">
-          拖拽文件到此处或 <em>点击上传</em>
-        </div>
+        <template v-if="!uploading">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            拖拽文件到此处或 <em>点击上传</em>
+          </div>
+        </template>
+        <template v-else>
+          <el-icon class="el-icon--loading"><loading /></el-icon>
+          <div class="el-upload__text">
+            正在上传文件...
+          </div>
+        </template>
         <template #tip>
           <div class="el-upload__tip">
             只能上传 xlsx/xls 文件
@@ -110,7 +119,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ProcessingConfig from '../components/ProcessingConfig.vue'
 import type { ExcelPreview, ProcessingConfig as IProcessingConfig } from '../types'
@@ -118,6 +127,8 @@ import type { ExcelPreview, ProcessingConfig as IProcessingConfig } from '../typ
 const filePreview = ref<ExcelPreview | null>(null)
 const showResult = ref(false)
 const processingResult = ref<any>(null)
+const uploading = ref(false)
+const processing = ref(false)
 
 const beforeUpload = (file: File) => {
   const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -126,10 +137,12 @@ const beforeUpload = (file: File) => {
     ElMessage.error('只能上传 Excel 文件!')
     return false
   }
+  uploading.value = true
   return true
 }
 
 const handleUploadSuccess = (response: any) => {
+  uploading.value = false
   if (response.success) {
     filePreview.value = response.data
     ElMessage.success('文件上传成功')
@@ -139,10 +152,12 @@ const handleUploadSuccess = (response: any) => {
 }
 
 const handleUploadError = (error: any) => {
+  uploading.value = false
   ElMessage.error('文件上传失败: ' + error.message)
 }
 
 const resetUpload = () => {
+  if (uploading.value || processing.value) return
   filePreview.value = null
   processingResult.value = null
   showResult.value = false
@@ -154,6 +169,7 @@ const handleConfigSubmit = async (config: IProcessingConfig) => {
     return
   }
 
+  processing.value = true
   try {
     const response = await fetch(`/api/process/${filePreview.value.file_id}`, {
       method: 'POST',
@@ -162,17 +178,24 @@ const handleConfigSubmit = async (config: IProcessingConfig) => {
       },
       body: JSON.stringify(config)
     })
-    const result = await response.json()
     
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const result = await response.json()
     if (result.success) {
       processingResult.value = result.data
       showResult.value = true
       ElMessage.success('处理成功')
     } else {
-      ElMessage.error(result.message || '处理失败')
+      throw new Error(result.message || '处理失败')
     }
   } catch (error) {
-    ElMessage.error('处理请求失败: ' + error)
+    console.error('处理失败:', error)
+    ElMessage.error(error instanceof Error ? error.message : '处理请求失败')
+  } finally {
+    processing.value = false
   }
 }
 
@@ -188,17 +211,27 @@ const downloadFile = async () => {
       throw new Error('下载失败')
     }
 
+    const contentDisposition = response.headers.get('content-disposition')
+    let filename = `processed_${filePreview.value.file_id}.xlsx`
+    if (contentDisposition) {
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition)
+      if (matches != null && matches[1]) {
+        filename = matches[1].replace(/['"]/g, '')
+      }
+    }
+
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `processed_${filePreview.value.file_id}.xlsx`
+    link.download = filename
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
   } catch (error) {
-    ElMessage.error('下载失败: ' + error)
+    console.error('下载失败:', error)
+    ElMessage.error(error instanceof Error ? error.message : '下载失败')
   }
 }
 </script>

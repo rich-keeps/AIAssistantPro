@@ -1,6 +1,6 @@
 <template>
   <div class="processing-config">
-    <el-form :model="config" label-width="120px">
+    <el-form :model="config" :rules="rules" ref="formRef" label-width="120px">
       <!-- 列映射配置 -->
       <el-card class="config-card">
         <template #header>
@@ -10,7 +10,7 @@
           </div>
         </template>
         <div v-for="(mapping, index) in config.column_mappings" :key="index" class="mapping-item">
-          <el-form-item :label="'映射 ' + (index + 1)">
+          <el-form-item :label="'映射 ' + (index + 1)" :prop="'column_mappings.' + index + '.source'" :rules="rules.mapping">
             <el-row :gutter="10">
               <el-col :span="8">
                 <el-select v-model="mapping.source" placeholder="源列名">
@@ -111,7 +111,7 @@
           </div>
         </template>
         <div v-for="(filter, index) in config.filters" :key="index" class="filter-item">
-          <el-form-item :label="'条件 ' + (index + 1)">
+          <el-form-item :label="'条件 ' + (index + 1)" :prop="'filters.' + index + '.column'" :rules="rules.filter">
             <el-row :gutter="10">
               <el-col :span="8">
                 <el-select v-model="filter.column" placeholder="选择列">
@@ -146,8 +146,8 @@
 
       <!-- 提交按钮 -->
       <div class="submit-buttons">
-        <el-button type="primary" @click="submitConfig">开始处理</el-button>
-        <el-button @click="resetConfig">重置配置</el-button>
+        <el-button type="primary" :loading="loading" @click="submitConfig">开始处理</el-button>
+        <el-button @click="resetConfig" :disabled="loading">重置配置</el-button>
       </div>
     </el-form>
   </div>
@@ -156,7 +156,9 @@
 <script setup lang="ts">
 import { ref, defineProps, defineEmits } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
+import type { FormInstance } from 'element-plus'
 import type { ColumnMapping, FilterCondition } from '../types'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
   headers: string[]
@@ -175,6 +177,40 @@ const defaultConfig = {
 }
 
 const config = ref({ ...defaultConfig })
+
+const loading = ref(false)
+const formRef = ref<FormInstance>()
+
+const rules = {
+  mapping: [
+    { required: true, message: '请选择源列名', trigger: 'change' },
+    { 
+      validator: (rule: any, value: string, callback: Function) => {
+        const mapping = config.value.column_mappings.find(m => m.source === value)
+        const count = config.value.column_mappings.filter(m => m.source === value).length
+        if (count > 1) {
+          callback(new Error('源列名不能重复'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
+  ],
+  filter: [
+    { required: true, message: '请选择列名', trigger: 'change' }
+  ]
+}
+
+const validateForm = async () => {
+  if (!formRef.value) return false
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (error) {
+    return false
+  }
+}
 
 const addColumnMapping = () => {
   config.value.column_mappings.push({
@@ -200,12 +236,47 @@ const removeFilter = (index: number) => {
   config.value.filters.splice(index, 1)
 }
 
-const submitConfig = () => {
-  emit('submit', config.value)
+const submitConfig = async () => {
+  if (!await validateForm()) {
+    return
+  }
+  
+  // 验证至少有一个列映射
+  if (config.value.column_mappings.length === 0) {
+    ElMessage.warning('请至少添加一个列映射')
+    return
+  }
+
+  // 验证所有列映射都有目标列名
+  const hasEmptyTarget = config.value.column_mappings.some(mapping => !mapping.target.trim())
+  if (hasEmptyTarget) {
+    ElMessage.warning('请填写所有的目标列名')
+    return
+  }
+
+  // 验证过滤条件完整性
+  if (config.value.filters?.length) {
+    const hasInvalidFilter = config.value.filters.some(
+      filter => !filter.column || !filter.operator || !filter.value
+    )
+    if (hasInvalidFilter) {
+      ElMessage.warning('请完整填写所有过滤条件')
+      return
+    }
+  }
+
+  loading.value = true
+  try {
+    emit('submit', config.value)
+  } finally {
+    loading.value = false
+  }
 }
 
 const resetConfig = () => {
+  if (loading.value) return
   config.value = { ...defaultConfig }
+  formRef.value?.resetFields()
 }
 </script>
 
