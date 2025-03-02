@@ -1,25 +1,63 @@
 <template>
     <el-config-provider :locale="locale">
         <div class="excel-processor">
+            <!-- 功能按钮区域 -->
+            <div class="action-buttons">
+                <el-button-group>
+                    <el-button type="success" :icon="Download" @click="handleExportOvertime">
+                        导出加班记录
+                    </el-button>
+                    <el-button type="warning" :icon="Download" @click="handleExportLeave">
+                        导出请假记录
+                    </el-button>
+                    <el-button type="primary" :icon="Download" @click="handleExportAttendance">
+                        导出考勤记录
+                    </el-button>
+                </el-button-group>
+            </div>
+
             <!-- 上传区域 -->
-            <el-card class="upload-card">
-                <template #header>
-                    <div class="card-header">
-                        <h2>Excel文件上传</h2>
-                    </div>
-                </template>
-                <el-upload class="upload-area" drag action="/api/upload" :on-success="handleUploadSuccess"
-                    :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls" ref="uploadRef"
-                    :on-remove="handleUploadRemove" :file-list="uploadFileList">
-                    <el-icon class="upload-icon">
-                        <Upload />
-                    </el-icon>
-                    <div class="upload-text">
-                        <span>将文件拖到此处或<em>点击上传</em></span>
-                        <p class="upload-tip">支持 .xlsx, .xls 格式文件</p>
-                    </div>
-                </el-upload>
-            </el-card>
+            <div class="upload-section">
+                <!-- 加班记录上传 -->
+                <el-card class="upload-card">
+                    <template #header>
+                        <div class="card-header">
+                            <h2>加班记录上传</h2>
+                        </div>
+                    </template>
+                    <el-upload class="upload-area" drag action="/api/upload" :on-success="handleOvertimeUploadSuccess"
+                        :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls"
+                        ref="overtimeUploadRef" :on-remove="handleOvertimeUploadRemove" :file-list="overtimeFileList">
+                        <el-icon class="upload-icon">
+                            <Upload />
+                        </el-icon>
+                        <div class="upload-text">
+                            <span>将加班记录文件拖到此处或<em>点击上传</em></span>
+                            <p class="upload-tip">支持 .xlsx, .xls 格式文件</p>
+                        </div>
+                    </el-upload>
+                </el-card>
+
+                <!-- 请假记录上传 -->
+                <el-card class="upload-card">
+                    <template #header>
+                        <div class="card-header">
+                            <h2>请假记录上传</h2>
+                        </div>
+                    </template>
+                    <el-upload class="upload-area" drag action="/api/upload" :on-success="handleLeaveUploadSuccess"
+                        :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls"
+                        ref="leaveUploadRef" :on-remove="handleLeaveUploadRemove" :file-list="leaveFileList">
+                        <el-icon class="upload-icon">
+                            <Upload />
+                        </el-icon>
+                        <div class="upload-text">
+                            <span>将请假记录文件拖到此处或<em>点击上传</em></span>
+                            <p class="upload-tip">支持 .xlsx, .xls 格式文件</p>
+                        </div>
+                    </el-upload>
+                </el-card>
+            </div>
 
             <!-- 文件列表和预览数据 -->
             <template v-for="(file, index) in fileList" :key="file.id">
@@ -28,7 +66,12 @@
                         <div class="card-header">
                             <div class="file-info">
                                 <h2>{{ file.name }}</h2>
-                                <span class="total-count">共 {{ file.preview.total_rows }} 条数据</span>
+                                <div class="file-tags">
+                                    <el-tag :type="file.type === 'overtime' ? 'success' : 'warning'" size="small">
+                                        {{ file.type === 'overtime' ? '加班记录' : '请假记录' }}
+                                    </el-tag>
+                                    <span class="total-count">共 {{ file.preview.total_rows }} 条数据</span>
+                                </div>
                             </div>
                             <el-button type="danger" text @click="removeFile(index)">
                                 <el-icon>
@@ -68,18 +111,20 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Upload, Delete } from '@element-plus/icons-vue'
+import { Upload, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ExcelPreview, ColumnHeader } from '../types'
 import type { UploadInstance, UploadFile } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const locale = zhCn
-const uploadRef = ref<UploadInstance>()
+const overtimeUploadRef = ref<UploadInstance>()
+const leaveUploadRef = ref<UploadInstance>()
 
 interface FileInfo {
     id: string
     name: string
+    type: 'overtime' | 'leave'  // 文件类型：加班或请假
     preview: ExcelPreview
     currentData: any[]
     headers: ColumnHeader[]
@@ -89,14 +134,83 @@ interface FileInfo {
 
 const fileList = ref<FileInfo[]>([])
 
-// 计算上传组件的文件列表
-const uploadFileList = computed(() => {
-    return fileList.value.map(file => ({
-        name: file.name,
-        url: '#',  // 这里可以设置为实际的文件URL
-        status: 'success'
-    }))
+// 计算加班记录文件列表
+const overtimeFileList = computed(() => {
+    return fileList.value
+        .filter(file => file.type === 'overtime')
+        .map(file => ({
+            name: file.name,
+            url: '#',
+            status: 'success'
+        }))
 })
+
+// 计算请假记录文件列表
+const leaveFileList = computed(() => {
+    return fileList.value
+        .filter(file => file.type === 'leave')
+        .map(file => ({
+            name: file.name,
+            url: '#',
+            status: 'success'
+        }))
+})
+
+// 处理加班记录上传成功
+const handleOvertimeUploadSuccess = async (response: any, uploadFile: any) => {
+    if (response.success) {
+        const newFile: FileInfo = {
+            id: response.data.file_id,
+            name: uploadFile.name,
+            type: 'overtime',
+            preview: response.data,
+            currentData: response.data.sample_data || [],
+            headers: response.data.headers,
+            currentPage: 1,
+            pageSize: 10
+        }
+        fileList.value.push(newFile)
+        ElMessage.success('加班记录上传成功')
+    } else {
+        ElMessage.error(response.message || '上传失败')
+    }
+}
+
+// 处理请假记录上传成功
+const handleLeaveUploadSuccess = async (response: any, uploadFile: any) => {
+    if (response.success) {
+        const newFile: FileInfo = {
+            id: response.data.file_id,
+            name: uploadFile.name,
+            type: 'leave',
+            preview: response.data,
+            currentData: response.data.sample_data || [],
+            headers: response.data.headers,
+            currentPage: 1,
+            pageSize: 10
+        }
+        fileList.value.push(newFile)
+        ElMessage.success('请假记录上传成功')
+    } else {
+        ElMessage.error(response.message || '上传失败')
+    }
+}
+
+// 处理加班记录移除
+const handleOvertimeUploadRemove = (uploadFile: UploadFile) => {
+    const index = fileList.value.findIndex(file => file.name === uploadFile.name && file.type === 'overtime')
+    if (index !== -1) {
+        removeFile(index)
+    }
+}
+
+// 处理请假记录移除
+const handleLeaveUploadRemove = (uploadFile: UploadFile) => {
+    const index = fileList.value.findIndex(file => file.name === uploadFile.name && file.type === 'leave')
+    if (index !== -1) {
+        removeFile(index)
+    }
+}
 
 // 处理分页变化
 const handleCurrentChange = async (page: number, fileIndex: number) => {
@@ -151,14 +265,6 @@ const removeFile = async (index: number) => {
     }
 }
 
-// 处理上传组件的移除事件
-const handleUploadRemove = (uploadFile: UploadFile) => {
-    const index = fileList.value.findIndex(file => file.name === uploadFile.name)
-    if (index !== -1) {
-        removeFile(index)
-    }
-}
-
 // 上传前验证
 const beforeUpload = (file: File) => {
     const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -168,25 +274,6 @@ const beforeUpload = (file: File) => {
         return false
     }
     return true
-}
-
-// 上传成功处理
-const handleUploadSuccess = async (response: any, uploadFile: any) => {
-    if (response.success) {
-        const newFile: FileInfo = {
-            id: response.data.file_id,
-            name: uploadFile.name,
-            preview: response.data,
-            currentData: response.data.sample_data || [],
-            headers: response.data.headers,
-            currentPage: 1,
-            pageSize: 10
-        }
-        fileList.value.push(newFile)
-        ElMessage.success('文件上传成功')
-    } else {
-        ElMessage.error(response.message || '上传失败')
-    }
 }
 
 // 上传失败处理
@@ -220,6 +307,168 @@ const formatDate = (value: any) => {
         return value
     }
 }
+
+// 导出加班记录
+const handleExportOvertime = async () => {
+    const overtimeFiles = fileList.value.filter(file => file.type === 'overtime')
+    if (overtimeFiles.length === 0) {
+        ElMessage.warning('没有可导出的加班记录')
+        return
+    }
+
+    try {
+        const response = await fetch('/api/export/overtime', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_ids: overtimeFiles.map(file => file.preview.file_id)
+            })
+        })
+
+        if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.detail || '导出失败')
+        }
+
+        // 获取文件名
+        const contentDisposition = response.headers.get('content-disposition')
+        let fileName = '加班明细表.xlsx'
+
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
+            if (filenameMatch && filenameMatch[1]) {
+                try {
+                    fileName = decodeURIComponent(filenameMatch[1])
+                } catch (e) {
+                    console.error('解码文件名失败:', e)
+                    fileName = filenameMatch[1]
+                }
+            }
+        }
+
+        // 下载文件
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        ElMessage.success('加班记录导出成功')
+    } catch (error) {
+        console.error('导出加班记录失败:', error)
+        ElMessage.error(error instanceof Error ? error.message : '导出加班记录失败')
+    }
+}
+
+// 导出请假记录
+const handleExportLeave = async () => {
+    const leaveFiles = fileList.value.filter(file => file.type === 'leave')
+    if (leaveFiles.length === 0) {
+        ElMessage.warning('没有可导出的请假记录')
+        return
+    }
+
+    try {
+        const response = await fetch('/api/export/leave', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_ids: leaveFiles.map(file => file.preview.file_id)
+            })
+        })
+
+        if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.detail || '导出失败')
+        }
+
+        // 获取文件名
+        const contentDisposition = response.headers.get('content-disposition')
+        let fileName = '请假明细表.xlsx'
+
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
+            if (filenameMatch && filenameMatch[1]) {
+                try {
+                    fileName = decodeURIComponent(filenameMatch[1])
+                } catch (e) {
+                    console.error('解码文件名失败:', e)
+                    fileName = filenameMatch[1]
+                }
+            }
+        }
+
+        // 下载文件
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        ElMessage.success('请假记录导出成功')
+    } catch (error) {
+        console.error('导出请假记录失败:', error)
+        ElMessage.error(error instanceof Error ? error.message : '导出请假记录失败')
+    }
+}
+
+// 导出考勤记录
+const handleExportAttendance = async () => {
+    if (fileList.value.length === 0) {
+        ElMessage.warning('没有可导出的考勤记录')
+        return
+    }
+
+    try {
+        const response = await fetch('/api/export/attendance', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_ids: fileList.value.map(file => file.preview.file_id)
+            })
+        })
+
+        if (!response.ok) {
+            throw new Error('导出失败')
+        }
+
+        // 获取文件名
+        const contentDisposition = response.headers.get('content-disposition')
+        const fileName = contentDisposition
+            ? decodeURIComponent(contentDisposition.split('filename=')[1].replace(/"/g, ''))
+            : 'attendance_records.xlsx'
+
+        // 下载文件
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        ElMessage.success('考勤记录导出成功')
+    } catch (error) {
+        console.error('导出考勤记录失败:', error)
+        ElMessage.error('导出考勤记录失败')
+    }
+}
 </script>
 
 <style scoped>
@@ -227,6 +476,26 @@ const formatDate = (value: any) => {
     display: flex;
     flex-direction: column;
     gap: 24px;
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+}
+
+:deep(.el-button-group) {
+    display: flex;
+    gap: 8px;
+}
+
+:deep(.el-button-group .el-button) {
+    border-radius: 6px !important;
+    padding: 8px 16px;
+}
+
+:deep(.el-button-group .el-button + .el-button) {
+    margin-left: 0;
 }
 
 .card-header {
@@ -248,7 +517,13 @@ const formatDate = (value: any) => {
     color: #1a1a1a;
 }
 
+.upload-section {
+    display: flex;
+    gap: 24px;
+}
+
 .upload-card {
+    flex: 1;
     background: #ffffff;
     border-radius: 12px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
@@ -335,5 +610,23 @@ const formatDate = (value: any) => {
 
 :deep(.el-pagination .el-select .el-input) {
     width: 120px;
+}
+
+.file-tags {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+:deep(.el-tag--success) {
+    --el-tag-bg-color: var(--el-color-success-light-9);
+    --el-tag-border-color: var(--el-color-success-light-5);
+    --el-tag-text-color: var(--el-color-success);
+}
+
+:deep(.el-tag--warning) {
+    --el-tag-bg-color: var(--el-color-warning-light-9);
+    --el-tag-border-color: var(--el-color-warning-light-5);
+    --el-tag-text-color: var(--el-color-warning);
 }
 </style>
