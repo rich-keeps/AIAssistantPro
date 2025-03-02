@@ -88,9 +88,9 @@
                                 :label="header.label" :min-width="header.width" align="center" show-overflow-tooltip>
                                 <template #default="scope">
                                     <span v-if="header.type === 'number'">{{ formatNumber(scope.row[header.key])
-                                    }}</span>
+                                        }}</span>
                                     <span v-else-if="header.type === 'datetime'">{{ formatDate(scope.row[header.key])
-                                    }}</span>
+                                        }}</span>
                                     <span v-else>{{ scope.row[header.key] }}</span>
                                 </template>
                             </el-table-column>
@@ -449,7 +449,7 @@ const handleExportAttendance = async () => {
 
         // 获取文件名
         const contentDisposition = response.headers.get('content-disposition')
-        let fileName = '考勤统计表.xlsx'
+        let fileName = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}加班统计表.xlsx`
 
         if (contentDisposition) {
             const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
@@ -458,7 +458,6 @@ const handleExportAttendance = async () => {
                     fileName = decodeURIComponent(filenameMatch[1])
                 } catch (e) {
                     console.error('解码文件名失败:', e)
-                    fileName = filenameMatch[1]
                 }
             }
         }
