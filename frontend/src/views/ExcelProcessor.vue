@@ -449,7 +449,7 @@ const handleExportAttendance = async () => {
 
         // 获取文件名
         const contentDisposition = response.headers.get('content-disposition')
-        let fileName = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}加班统计表.xlsx`
+        let fileName = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}加班统计表.xlsx`
 
         if (contentDisposition) {
             const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
