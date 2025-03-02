@@ -443,14 +443,25 @@ const handleExportAttendance = async () => {
         })
 
         if (!response.ok) {
-            throw new Error('导出失败')
+            const errorData = await response.json()
+            throw new Error(errorData.detail || '导出失败')
         }
 
         // 获取文件名
         const contentDisposition = response.headers.get('content-disposition')
-        const fileName = contentDisposition
-            ? decodeURIComponent(contentDisposition.split('filename=')[1].replace(/"/g, ''))
-            : 'attendance_records.xlsx'
+        let fileName = '考勤统计表.xlsx'
+
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
+            if (filenameMatch && filenameMatch[1]) {
+                try {
+                    fileName = decodeURIComponent(filenameMatch[1])
+                } catch (e) {
+                    console.error('解码文件名失败:', e)
+                    fileName = filenameMatch[1]
+                }
+            }
+        }
 
         // 下载文件
         const blob = await response.blob()
@@ -466,7 +477,7 @@ const handleExportAttendance = async () => {
         ElMessage.success('考勤记录导出成功')
     } catch (error) {
         console.error('导出考勤记录失败:', error)
-        ElMessage.error('导出考勤记录失败')
+        ElMessage.error(error instanceof Error ? error.message : '导出考勤记录失败')
     }
 }
 </script>
