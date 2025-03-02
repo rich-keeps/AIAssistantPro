@@ -18,8 +18,15 @@ export interface ProcessingConfig {
     filters?: FilterCondition[]
 }
 
+export interface ColumnHeader {
+    key: string
+    label: string
+    type: string
+    width: number
+}
+
 export interface ExcelPreview {
-    headers: string[]
+    headers: ColumnHeader[]
     sample_data: Record<string, any>[]
     total_rows: number
     file_id: string

@@ -1,42 +1,286 @@
 <script setup lang="ts">
 import { ElConfigProvider } from 'element-plus'
+import { Calendar, Setting, Cpu } from '@element-plus/icons-vue'
 </script>
 
 <template>
-  <el-config-provider>
-    <el-container>
-      <el-header>
-        <h1>Excel数据处理工具</h1>
-      </el-header>
-      <el-main>
-        <router-view></router-view>
-      </el-main>
-      <el-footer>
-        <p>&copy; 2024 Excel数据处理工具</p>
-      </el-footer>
-    </el-container>
-  </el-config-provider>
+    <el-config-provider>
+        <div class="app-wrapper">
+            <!-- 侧边栏 -->
+            <div class="sidebar">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <el-icon>
+                            <Cpu />
+                        </el-icon>
+                    </div>
+                    <span>AI智能化管理系统</span>
+                </div>
+
+                <el-menu default-active="/excel-processor" router>
+                    <el-menu-item index="/excel-processor">
+                        <el-icon>
+                            <Calendar />
+                        </el-icon>
+                        <span>考勤管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="/settings">
+                        <el-icon>
+                            <Setting />
+                        </el-icon>
+                        <span>系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+
+                <!-- 工作区选择器 -->
+                <div class="workspace-selector">
+                    <div class="workspace-info">
+                        <el-avatar class="workspace-avatar" :size="32">{{ '研' }}</el-avatar>
+                        <div class="workspace-text">
+                            <div class="workspace-name">研发部</div>
+                            <div class="workspace-role">管理员</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="main-container">
+                <!-- 顶部导航 -->
+                <div class="navbar">
+                    <div class="right-menu">
+                        <div class="user-profile">
+                            <el-avatar class="user-avatar" :size="40">{{ '管' }}</el-avatar>
+                            <div class="user-info">
+                                <div class="user-name">管理员</div>
+                                <div class="user-title">系统管理员</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 内容区 -->
+                <div class="app-main">
+                    <router-view></router-view>
+                </div>
+            </div>
+        </div>
+    </el-config-provider>
 </template>
 
 <style>
-.el-header {
-  background-color: #409EFF;
-  color: white;
-  text-align: center;
-  line-height: 60px;
-  padding: 0;
+:root {
+    --primary-color: #4CAF50;
+    --sidebar-width: 280px;
+    --header-height: 70px;
+    --bg-color: #e8f5e9;
+
+    /* Element Plus 主题色变量 */
+    --el-color-primary: var(--primary-color);
+    --el-color-primary-light-3: #81c784;
+    --el-color-primary-light-5: #a5d6a7;
+    --el-color-primary-light-7: #c8e6c9;
+    --el-color-primary-light-8: #dcedc8;
+    --el-color-primary-light-9: #f1f8e9;
+    --el-color-primary-dark-2: #388e3c;
 }
 
-.el-footer {
-  background-color: #f5f7fa;
-  color: #606266;
-  text-align: center;
-  line-height: 60px;
-  padding: 0;
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--bg-color);
 }
 
-.el-main {
-  padding: 20px;
-  min-height: calc(100vh - 120px);
+.app-wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    padding: 15px;
+    box-sizing: border-box;
+    background-color: var(--bg-color);
+    gap: 15px;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+    width: var(--sidebar-width);
+    height: calc(100vh - 30px);
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    box-sizing: border-box;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+}
+
+.logo {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    margin-bottom: 32px;
+}
+
+.logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--primary-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 20px;
+}
+
+.logo span {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.el-menu {
+    border: none !important;
+    margin: 0 -24px;
+    padding: 0 12px;
+}
+
+.el-menu-item {
+    height: 44px !important;
+    border-radius: 8px;
+    margin: 4px 12px;
+    color: #64748b !important;
+}
+
+.el-menu-item:hover {
+    background: #f1f5f9 !important;
+}
+
+.el-menu-item.is-active {
+    background: #e8f5e9 !important;
+    color: var(--primary-color) !important;
+}
+
+.el-menu-item .el-icon {
+    color: inherit;
+}
+
+/* 工作区选择器 */
+.workspace-selector {
+    margin-top: auto;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.workspace-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.workspace-avatar {
+    background: var(--primary-color);
+}
+
+.workspace-text {
+    flex: 1;
+}
+
+.workspace-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.workspace-role {
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* 主容器样式 */
+.main-container {
+    flex: 1;
+    height: calc(100vh - 30px);
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 顶部导航样式 */
+.navbar {
+    height: var(--header-height);
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 32px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.right-menu {
+    display: flex;
+    align-items: center;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.user-info {
+    text-align: center;
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.user-title {
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* 主内容区样式 */
+.app-main {
+    padding: 32px;
+    height: calc(100% - var(--header-height));
+    overflow-y: auto;
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 1200px) {
+    :root {
+        --sidebar-width: 80px;
+    }
+
+    .logo span,
+    .el-menu-item span,
+    .workspace-text {
+        display: none;
+    }
+
+    .workspace-selector {
+        padding: 12px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .workspace-info {
+        justify-content: center;
+    }
 }
 </style>
