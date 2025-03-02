@@ -9,7 +9,8 @@
                     </div>
                 </template>
                 <el-upload class="upload-area" drag action="/api/upload" :on-success="handleUploadSuccess"
-                    :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls">
+                    :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls" ref="uploadRef"
+                    :on-remove="handleUploadRemove" :file-list="uploadFileList">
                     <el-icon class="upload-icon">
                         <Upload />
                     </el-icon>
@@ -20,90 +21,141 @@
                 </el-upload>
             </el-card>
 
-            <!-- 预览数据 -->
-            <el-card v-if="fileInfo.preview" class="preview-card">
-                <template #header>
-                    <div class="card-header">
-                        <h2>数据预览</h2>
-                        <span class="total-count">共 {{ fileInfo.preview.total_rows }} 条数据</span>
+            <!-- 文件列表和预览数据 -->
+            <template v-for="(file, index) in fileList" :key="file.id">
+                <el-card class="preview-card">
+                    <template #header>
+                        <div class="card-header">
+                            <div class="file-info">
+                                <h2>{{ file.name }}</h2>
+                                <span class="total-count">共 {{ file.preview.total_rows }} 条数据</span>
+                            </div>
+                            <el-button type="danger" text @click="removeFile(index)">
+                                <el-icon>
+                                    <Delete />
+                                </el-icon>
+                                移除
+                            </el-button>
+                        </div>
+                    </template>
+
+                    <div class="table-wrapper">
+                        <el-table :data="file.currentData" border>
+                            <el-table-column v-for="header in file.headers" :key="header.key" :prop="header.key"
+                                :label="header.label" :min-width="header.width" align="center" show-overflow-tooltip>
+                                <template #default="scope">
+                                    <span v-if="header.type === 'number'">{{ formatNumber(scope.row[header.key])
+                                    }}</span>
+                                    <span v-else-if="header.type === 'datetime'">{{ formatDate(scope.row[header.key])
+                                    }}</span>
+                                    <span v-else>{{ scope.row[header.key] }}</span>
+                                </template>
+                            </el-table-column>
+                        </el-table>
                     </div>
-                </template>
-                <div class="table-wrapper">
-                    <el-table :data="paginatedData" border>
-                        <el-table-column v-for="header in fileInfo.headers" :key="header.key" :prop="header.key"
-                            :label="header.label" :min-width="header.width" align="center" show-overflow-tooltip>
-                            <template #default="scope">
-                                <span v-if="header.type === 'number'">{{ formatNumber(scope.row[header.key])
-                                }}</span>
-                                <span v-else-if="header.type === 'datetime'">{{ formatDate(scope.row[header.key])
-                                }}</span>
-                                <span v-else>{{ scope.row[header.key] }}</span>
-                            </template>
-                        </el-table-column>
-                    </el-table>
-                </div>
-                <div class="pagination-container">
-                    <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
-                        :page-sizes="[10, 20, 50, 100]" :total="fileInfo.preview?.total_rows || 0"
-                        layout="total, sizes, prev, pager, next" @size-change="handleSizeChange"
-                        @current-change="handleCurrentChange" />
-                </div>
-            </el-card>
+                    <div class="pagination-container">
+                        <el-pagination v-model:current-page="file.currentPage" v-model:page-size="file.pageSize"
+                            :page-sizes="[10, 20, 50, 100]" :total="file.preview.total_rows"
+                            layout="total, sizes, prev, pager, next"
+                            @size-change="(size: number) => handleSizeChange(size, index)"
+                            @current-change="(page: number) => handleCurrentChange(page, index)" />
+                    </div>
+                </el-card>
+            </template>
         </div>
     </el-config-provider>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Upload } from '@element-plus/icons-vue'
+import { Upload, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ExcelPreview, ColumnHeader } from '../types'
+import type { UploadInstance, UploadFile } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const locale = zhCn
+const uploadRef = ref<UploadInstance>()
 
-const fileInfo = ref({
-    preview: null as ExcelPreview | null,
-    currentData: [] as any[],
-    headers: [] as ColumnHeader[]
-})
+interface FileInfo {
+    id: string
+    name: string
+    preview: ExcelPreview
+    currentData: any[]
+    headers: ColumnHeader[]
+    currentPage: number
+    pageSize: number
+}
 
-// 分页相关状态
-const currentPage = ref(1)
-const pageSize = ref(10)
+const fileList = ref<FileInfo[]>([])
 
-// 计算分页后的数据
-const paginatedData = computed(() => {
-    return fileInfo.value.currentData || []
+// 计算上传组件的文件列表
+const uploadFileList = computed(() => {
+    return fileList.value.map(file => ({
+        name: file.name,
+        url: '#',  // 这里可以设置为实际的文件URL
+        status: 'success'
+    }))
 })
 
 // 处理分页变化
-const handleCurrentChange = async (val: number) => {
-    currentPage.value = val
-    await fetchPageData()
+const handleCurrentChange = async (page: number, fileIndex: number) => {
+    const file = fileList.value[fileIndex]
+    file.currentPage = page
+    await fetchPageData(fileIndex)
 }
 
-const handleSizeChange = async (val: number) => {
-    pageSize.value = val
-    currentPage.value = 1
-    await fetchPageData()
+const handleSizeChange = async (size: number, fileIndex: number) => {
+    const file = fileList.value[fileIndex]
+    file.pageSize = size
+    file.currentPage = 1
+    await fetchPageData(fileIndex)
 }
 
 // 获取分页数据
-const fetchPageData = async () => {
-    if (!fileInfo.value.preview?.file_id) return
+const fetchPageData = async (fileIndex: number) => {
+    const file = fileList.value[fileIndex]
+    if (!file.preview?.file_id) return
 
     try {
-        const response = await fetch(`/api/data/${fileInfo.value.preview.file_id}?page=${currentPage.value}&size=${pageSize.value}`)
+        const response = await fetch(`/api/data/${file.preview.file_id}?page=${file.currentPage}&size=${file.pageSize}`)
         const result = await response.json()
         if (result.success) {
-            fileInfo.value.currentData = result.data.items
-            fileInfo.value.headers = result.data.headers
+            file.currentData = result.data.items
+            file.headers = result.data.headers
         } else {
             ElMessage.error(result.message || '获取数据失败')
         }
     } catch (error) {
         ElMessage.error('获取数据失败')
+    }
+}
+
+// 移除文件
+const removeFile = async (index: number) => {
+    const file = fileList.value[index]
+    try {
+        const response = await fetch(`/api/file/${file.preview.file_id}`, {
+            method: 'DELETE'
+        })
+        const result = await response.json()
+        if (result.success) {
+            fileList.value.splice(index, 1)
+            ElMessage.success('文件删除成功')
+        } else {
+            ElMessage.error(result.message || '删除失败')
+        }
+    } catch (error) {
+        console.error('删除文件失败:', error)
+        ElMessage.error('删除文件失败')
+    }
+}
+
+// 处理上传组件的移除事件
+const handleUploadRemove = (uploadFile: UploadFile) => {
+    const index = fileList.value.findIndex(file => file.name === uploadFile.name)
+    if (index !== -1) {
+        removeFile(index)
     }
 }
 
@@ -119,12 +171,18 @@ const beforeUpload = (file: File) => {
 }
 
 // 上传成功处理
-const handleUploadSuccess = async (response: any) => {
+const handleUploadSuccess = async (response: any, uploadFile: any) => {
     if (response.success) {
-        fileInfo.value.preview = response.data
-        fileInfo.value.currentData = response.data.sample_data || []
-        fileInfo.value.headers = response.data.headers
-        currentPage.value = 1
+        const newFile: FileInfo = {
+            id: response.data.file_id,
+            name: uploadFile.name,
+            preview: response.data,
+            currentData: response.data.sample_data || [],
+            headers: response.data.headers,
+            currentPage: 1,
+            pageSize: 10
+        }
+        fileList.value.push(newFile)
         ElMessage.success('文件上传成功')
     } else {
         ElMessage.error(response.message || '上传失败')
@@ -140,11 +198,9 @@ const handleUploadError = () => {
 const formatNumber = (value: any) => {
     if (value === null || value === undefined) return ''
     if (typeof value === 'number') {
-        // 如果是整数，不显示小数点
         if (Number.isInteger(value)) {
             return value.toString()
         }
-        // 如果是小数，保留两位小数
         return value.toFixed(2)
     }
     return value
@@ -177,6 +233,12 @@ const formatDate = (value: any) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .card-header h2 {
