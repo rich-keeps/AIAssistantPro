@@ -159,12 +159,36 @@ const leaveFileList = computed(() => {
 // 处理加班记录上传成功
 const handleOvertimeUploadSuccess = async (response: any, uploadFile: any) => {
     if (response.success) {
+        // 移除之前的加班记录
+        const overtimeIndex = fileList.value.findIndex(file => file.type === 'overtime')
+        if (overtimeIndex !== -1) {
+            // 删除服务器上的旧文件
+            try {
+                await fetch(`/api/file/${fileList.value[overtimeIndex].preview.file_id}`, {
+                    method: 'DELETE'
+                })
+            } catch (error) {
+                console.error('删除旧文件失败:', error)
+            }
+            fileList.value.splice(overtimeIndex, 1)
+        }
+
+        // 过滤掉表头数据
+        const filteredData = {
+            ...response.data,
+            sample_data: response.data.sample_data.filter((row: any) =>
+                row['加班人'] !== '加班人' &&
+                row['开始时间'] !== '开始时间' &&
+                row['结束时间'] !== '结束时间'
+            )
+        }
+
         const newFile: FileInfo = {
             id: response.data.file_id,
             name: uploadFile.name,
             type: 'overtime',
-            preview: response.data,
-            currentData: response.data.sample_data || [],
+            preview: filteredData,
+            currentData: filteredData.sample_data || [],
             headers: response.data.headers,
             currentPage: 1,
             pageSize: 10
@@ -179,6 +203,20 @@ const handleOvertimeUploadSuccess = async (response: any, uploadFile: any) => {
 // 处理请假记录上传成功
 const handleLeaveUploadSuccess = async (response: any, uploadFile: any) => {
     if (response.success) {
+        // 移除之前的请假记录
+        const leaveIndex = fileList.value.findIndex(file => file.type === 'leave')
+        if (leaveIndex !== -1) {
+            // 删除服务器上的旧文件
+            try {
+                await fetch(`/api/file/${fileList.value[leaveIndex].preview.file_id}`, {
+                    method: 'DELETE'
+                })
+            } catch (error) {
+                console.error('删除旧文件失败:', error)
+            }
+            fileList.value.splice(leaveIndex, 1)
+        }
+
         const newFile: FileInfo = {
             id: response.data.file_id,
             name: uploadFile.name,
@@ -229,19 +267,49 @@ const handleSizeChange = async (size: number, fileIndex: number) => {
 // 获取分页数据
 const fetchPageData = async (fileIndex: number) => {
     const file = fileList.value[fileIndex]
-    if (!file.preview?.file_id) return
+    if (!file?.preview?.file_id) {
+        ElMessage.error('文件信息不完整')
+        return
+    }
 
     try {
         const response = await fetch(`/api/data/${file.preview.file_id}?page=${file.currentPage}&size=${file.pageSize}`)
+        if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.detail || '获取数据失败')
+        }
+
         const result = await response.json()
         if (result.success) {
-            file.currentData = result.data.items
+            // 如果是加班记录，过滤掉表头数据
+            if (file.type === 'overtime') {
+                file.currentData = result.data.items.filter((row: any) =>
+                    row['加班人'] !== '加班人' &&
+                    row['开始时间'] !== '开始时间' &&
+                    row['结束时间'] !== '结束时间'
+                )
+            } else {
+                file.currentData = result.data.items
+            }
             file.headers = result.data.headers
+
+            // 更新分页信息
+            if (result.data.total_pages < file.currentPage) {
+                file.currentPage = 1
+                await fetchPageData(fileIndex)
+            }
         } else {
-            ElMessage.error(result.message || '获取数据失败')
+            throw new Error(result.message || '获取数据失败')
         }
     } catch (error) {
-        ElMessage.error('获取数据失败')
+        console.error('获取分页数据失败:', error)
+        ElMessage.error(error instanceof Error ? error.message : '获取数据失败')
+
+        // 如果是文件不存在的错误，从列表中移除该文件
+        if (error instanceof Error && error.message.includes('不存在')) {
+            fileList.value.splice(fileIndex, 1)
+            ElMessage.warning('文件已被删除或移动，已从列表中移除')
+        }
     }
 }
 
