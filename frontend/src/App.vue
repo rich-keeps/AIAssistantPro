@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ElConfigProvider } from 'element-plus'
 import { Calendar, Setting, Cpu, Document } from '@element-plus/icons-vue'
+import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+
+const route = useRoute()
+const activeMenu = computed(() => route.path)
 </script>
 
 <template>
@@ -17,7 +22,7 @@ import { Calendar, Setting, Cpu, Document } from '@element-plus/icons-vue'
                     <span>AI智能化管理系统</span>
                 </div>
 
-                <el-menu default-active="/excel-processor" router>
+                <el-menu :default-active="activeMenu" router>
                     <el-menu-item index="/excel-processor">
                         <el-icon>
                             <Calendar />

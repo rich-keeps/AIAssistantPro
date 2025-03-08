@@ -55,7 +55,7 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import { reportApi } from '@/api/report'
-import { downloadFile, isWorkday, getMonthDays } from '@/utils/common'
+import { downloadFile, getMonthDays } from '@/utils/common'
 
 dayjs.locale('zh-cn')
 
@@ -68,7 +68,7 @@ const checkAll = ref(false)
 const loading = ref(false)
 
 // 监听月份变化
-const handleMonthChange = (date: Date | null) => {
+const handleMonthChange = async (date: Date | null) => {
     if (!date) {
         daysInMonth.value = []
         selectedDays.value = []
@@ -78,16 +78,21 @@ const handleMonthChange = (date: Date | null) => {
     const year = date.getFullYear()
     const month = date.getMonth() + 1
 
-    // 获取该月的所有日期
-    daysInMonth.value = getMonthDays(year, month)
+    try {
+        // 获取该月的所有日期（异步）
+        daysInMonth.value = await getMonthDays(year, month)
 
-    // 默认选中工作日
-    selectedDays.value = daysInMonth.value
-        .filter(day => day.isWorkday)
-        .map(day => day.date)
+        // 默认选中工作日
+        selectedDays.value = daysInMonth.value
+            .filter(day => day.isWorkday)
+            .map(day => day.date)
 
-    // 更新全选状态
-    updateCheckAllStatus()
+        // 更新全选状态
+        updateCheckAllStatus()
+    } catch (error) {
+        console.error('获取月份日期失败:', error)
+        ElMessage.error('获取日期数据失败，请重试')
+    }
 }
 
 // 处理全选变化
