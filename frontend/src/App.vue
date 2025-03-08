@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElConfigProvider } from 'element-plus'
-import { Calendar, Setting, Cpu } from '@element-plus/icons-vue'
+import { Calendar, Setting, Cpu, Document } from '@element-plus/icons-vue'
 </script>
 
 <template>
@@ -23,6 +23,12 @@ import { Calendar, Setting, Cpu } from '@element-plus/icons-vue'
                             <Calendar />
                         </el-icon>
                         <span>考勤管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="/report">
+                        <el-icon>
+                            <Document />
+                        </el-icon>
+                        <span>报表生成</span>
                     </el-menu-item>
                     <el-menu-item index="/settings">
                         <el-icon>

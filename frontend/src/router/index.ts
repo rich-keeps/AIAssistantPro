@@ -13,6 +13,11 @@ const router = createRouter({
             component: () => import('../views/ExcelProcessor.vue')
         },
         {
+            path: '/report',
+            name: 'report',
+            component: () => import('../views/Report.vue')
+        },
+        {
             path: '/settings',
             name: 'settings',
             component: () => import('../views/Settings.vue')

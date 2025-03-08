@@ -4,13 +4,14 @@
             <!-- 功能按钮区域 -->
             <div class="action-buttons">
                 <el-button-group>
-                    <el-button type="success" :icon="Download" @click="handleExportOvertime">
+                    <el-button type="success" :icon="Download" @click="handleExportOvertime"
+                        :disabled="!hasOvertimeFile">
                         导出加班记录
                     </el-button>
-                    <el-button type="warning" :icon="Download" @click="handleExportLeave">
+                    <el-button type="warning" :icon="Download" @click="handleExportLeave" :disabled="!hasLeaveFile">
                         导出请假记录
                     </el-button>
-                    <el-button type="primary" :icon="Download" @click="handleExportAttendance">
+                    <el-button type="primary" :icon="Download" @click="handleExportAttendance" :disabled="!hasAnyFile">
                         导出考勤记录
                     </el-button>
                 </el-button-group>
@@ -25,9 +26,10 @@
                             <h2>加班记录上传</h2>
                         </div>
                     </template>
-                    <el-upload class="upload-area" drag action="/api/upload" :on-success="handleOvertimeUploadSuccess"
-                        :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls"
-                        ref="overtimeUploadRef" :on-remove="handleOvertimeUploadRemove" :file-list="overtimeFileList">
+                    <el-upload class="upload-area" drag :action="API_ENDPOINTS.UPLOAD + '?type=overtime'"
+                        :on-success="handleOvertimeUploadSuccess" :on-error="handleUploadError"
+                        :before-upload="beforeUpload" accept=".xlsx,.xls" ref="overtimeUploadRef"
+                        :on-remove="handleOvertimeUploadRemove" :file-list="overtimeFileList">
                         <el-icon class="upload-icon">
                             <Upload />
                         </el-icon>
@@ -45,9 +47,10 @@
                             <h2>请假记录上传</h2>
                         </div>
                     </template>
-                    <el-upload class="upload-area" drag action="/api/upload" :on-success="handleLeaveUploadSuccess"
-                        :on-error="handleUploadError" :before-upload="beforeUpload" accept=".xlsx,.xls"
-                        ref="leaveUploadRef" :on-remove="handleLeaveUploadRemove" :file-list="leaveFileList">
+                    <el-upload class="upload-area" drag :action="API_ENDPOINTS.UPLOAD + '?type=leave'"
+                        :on-success="handleLeaveUploadSuccess" :on-error="handleUploadError"
+                        :before-upload="beforeUpload" accept=".xlsx,.xls" ref="leaveUploadRef"
+                        :on-remove="handleLeaveUploadRemove" :file-list="leaveFileList">
                         <el-icon class="upload-icon">
                             <Upload />
                         </el-icon>
@@ -87,10 +90,12 @@
                             <el-table-column v-for="header in file.headers" :key="header.key" :prop="header.key"
                                 :label="header.label" :min-width="header.width" align="center" show-overflow-tooltip>
                                 <template #default="scope">
-                                    <span v-if="header.type === 'number'">{{ formatNumber(scope.row[header.key])
-                                        }}</span>
-                                    <span v-else-if="header.type === 'datetime'">{{ formatDate(scope.row[header.key])
-                                        }}</span>
+                                    <span v-if="header.type === 'number'">
+                                        {{ formatNumber(scope.row[header.key]) }}
+                                    </span>
+                                    <span v-else-if="header.type === 'datetime'">
+                                        {{ formatDate(scope.row[header.key]) }}
+                                    </span>
                                     <span v-else>{{ scope.row[header.key] }}</span>
                                 </template>
                             </el-table-column>
@@ -113,25 +118,18 @@
 import { ref, computed } from 'vue'
 import { Upload, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { ExcelPreview, ColumnHeader } from '../types'
 import type { UploadInstance, UploadFile } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import { attendanceApi } from '@/api/attendance'
+import type { FileInfo } from '@/types'
+import { downloadFile, getFilenameFromHeaders } from '@/utils/common'
+import { API_ENDPOINTS } from '@/config'
 
 const locale = zhCn
 const overtimeUploadRef = ref<UploadInstance>()
 const leaveUploadRef = ref<UploadInstance>()
 
-interface FileInfo {
-    id: string
-    name: string
-    type: 'overtime' | 'leave'  // 文件类型：加班或请假
-    preview: ExcelPreview
-    currentData: any[]
-    headers: ColumnHeader[]
-    currentPage: number
-    pageSize: number
-}
-
+// 文件列表
 const fileList = ref<FileInfo[]>([])
 
 // 计算加班记录文件列表
@@ -156,21 +154,22 @@ const leaveFileList = computed(() => {
         }))
 })
 
+// 计算属性：是否有加班文件
+const hasOvertimeFile = computed(() => fileList.value.some(file => file.type === 'overtime'))
+
+// 计算属性：是否有请假文件
+const hasLeaveFile = computed(() => fileList.value.some(file => file.type === 'leave'))
+
+// 计算属性：是否有任何文件
+const hasAnyFile = computed(() => fileList.value.length > 0)
+
 // 处理加班记录上传成功
-const handleOvertimeUploadSuccess = async (response: any, uploadFile: any) => {
+const handleOvertimeUploadSuccess = async (response: any, uploadFile: UploadFile) => {
     if (response.success) {
         // 移除之前的加班记录
         const overtimeIndex = fileList.value.findIndex(file => file.type === 'overtime')
         if (overtimeIndex !== -1) {
-            // 删除服务器上的旧文件
-            try {
-                await fetch(`/api/file/${fileList.value[overtimeIndex].preview.file_id}`, {
-                    method: 'DELETE'
-                })
-            } catch (error) {
-                console.error('删除旧文件失败:', error)
-            }
-            fileList.value.splice(overtimeIndex, 1)
+            await removeFile(overtimeIndex)
         }
 
         // 过滤掉表头数据
@@ -201,20 +200,12 @@ const handleOvertimeUploadSuccess = async (response: any, uploadFile: any) => {
 }
 
 // 处理请假记录上传成功
-const handleLeaveUploadSuccess = async (response: any, uploadFile: any) => {
+const handleLeaveUploadSuccess = async (response: any, uploadFile: UploadFile) => {
     if (response.success) {
         // 移除之前的请假记录
         const leaveIndex = fileList.value.findIndex(file => file.type === 'leave')
         if (leaveIndex !== -1) {
-            // 删除服务器上的旧文件
-            try {
-                await fetch(`/api/file/${fileList.value[leaveIndex].preview.file_id}`, {
-                    method: 'DELETE'
-                })
-            } catch (error) {
-                console.error('删除旧文件失败:', error)
-            }
-            fileList.value.splice(leaveIndex, 1)
+            await removeFile(leaveIndex)
         }
 
         const newFile: FileInfo = {
@@ -250,83 +241,35 @@ const handleLeaveUploadRemove = (uploadFile: UploadFile) => {
     }
 }
 
-// 处理分页变化
-const handleCurrentChange = async (page: number, fileIndex: number) => {
-    const file = fileList.value[fileIndex]
-    file.currentPage = page
-    await fetchPageData(fileIndex)
-}
-
-const handleSizeChange = async (size: number, fileIndex: number) => {
-    const file = fileList.value[fileIndex]
+// 处理分页大小变化
+const handleSizeChange = (size: number, index: number) => {
+    const file = fileList.value[index]
     file.pageSize = size
-    file.currentPage = 1
-    await fetchPageData(fileIndex)
+    updateCurrentData(index)
 }
 
-// 获取分页数据
-const fetchPageData = async (fileIndex: number) => {
-    const file = fileList.value[fileIndex]
-    if (!file?.preview?.file_id) {
-        ElMessage.error('文件信息不完整')
-        return
-    }
+// 处理页码变化
+const handleCurrentChange = (page: number, index: number) => {
+    const file = fileList.value[index]
+    file.currentPage = page
+    updateCurrentData(index)
+}
 
-    try {
-        const response = await fetch(`/api/data/${file.preview.file_id}?page=${file.currentPage}&size=${file.pageSize}`)
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.detail || '获取数据失败')
-        }
-
-        const result = await response.json()
-        if (result.success) {
-            // 如果是加班记录，过滤掉表头数据
-            if (file.type === 'overtime') {
-                file.currentData = result.data.items.filter((row: any) =>
-                    row['加班人'] !== '加班人' &&
-                    row['开始时间'] !== '开始时间' &&
-                    row['结束时间'] !== '结束时间'
-                )
-            } else {
-                file.currentData = result.data.items
-            }
-            file.headers = result.data.headers
-
-            // 更新分页信息
-            if (result.data.total_pages < file.currentPage) {
-                file.currentPage = 1
-                await fetchPageData(fileIndex)
-            }
-        } else {
-            throw new Error(result.message || '获取数据失败')
-        }
-    } catch (error) {
-        console.error('获取分页数据失败:', error)
-        ElMessage.error(error instanceof Error ? error.message : '获取数据失败')
-
-        // 如果是文件不存在的错误，从列表中移除该文件
-        if (error instanceof Error && error.message.includes('不存在')) {
-            fileList.value.splice(fileIndex, 1)
-            ElMessage.warning('文件已被删除或移动，已从列表中移除')
-        }
-    }
+// 更新当前显示的数据
+const updateCurrentData = (index: number) => {
+    const file = fileList.value[index]
+    const start = (file.currentPage - 1) * file.pageSize
+    const end = start + file.pageSize
+    file.currentData = file.preview.sample_data.slice(start, end)
 }
 
 // 移除文件
 const removeFile = async (index: number) => {
     const file = fileList.value[index]
     try {
-        const response = await fetch(`/api/file/${file.preview.file_id}`, {
-            method: 'DELETE'
-        })
-        const result = await response.json()
-        if (result.success) {
-            fileList.value.splice(index, 1)
-            ElMessage.success('文件删除成功')
-        } else {
-            ElMessage.error(result.message || '删除失败')
-        }
+        await attendanceApi.deleteFile(file.preview.file_id)
+        fileList.value.splice(index, 1)
+        ElMessage.success('文件已移除')
     } catch (error) {
         console.error('删除文件失败:', error)
         ElMessage.error('删除文件失败')
@@ -378,173 +321,110 @@ const formatDate = (value: any) => {
 
 // 导出加班记录
 const handleExportOvertime = async () => {
-    const overtimeFiles = fileList.value.filter(file => file.type === 'overtime')
-    if (overtimeFiles.length === 0) {
-        ElMessage.warning('没有可导出的加班记录')
+    const overtimeFile = fileList.value.find(file => file.type === 'overtime')
+    if (!overtimeFile) {
+        ElMessage.warning('请先上传加班记录')
         return
     }
 
     try {
-        const response = await fetch('/api/export/overtime', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                file_ids: overtimeFiles.map(file => file.preview.file_id)
-            })
-        })
+        const response = await attendanceApi.exportOvertime(overtimeFile.preview.file_id)
 
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.detail || '导出失败')
+        // 尝试从响应头中获取文件名
+        const headerFilename = getFilenameFromHeaders(response.headers)
+
+        // 如果响应头中有文件名，则使用它，否则使用前端生成的文件名
+        let filename
+        if (headerFilename) {
+            filename = headerFilename
+        } else {
+            // 获取当前日期并格式化为年月日
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = String(today.getMonth() + 1).padStart(2, '0')
+            const day = String(today.getDate()).padStart(2, '0')
+            const dateStr = `${year}${month}${day}`
+            filename = `${dateStr}加班记录.xlsx`
         }
 
-        // 获取文件名
-        const contentDisposition = response.headers.get('content-disposition')
-        let fileName = '加班明细表.xlsx'
-
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
-            if (filenameMatch && filenameMatch[1]) {
-                try {
-                    fileName = decodeURIComponent(filenameMatch[1])
-                } catch (e) {
-                    console.error('解码文件名失败:', e)
-                    fileName = filenameMatch[1]
-                }
-            }
-        }
-
-        // 下载文件
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-
-        ElMessage.success('加班记录导出成功')
+        downloadFile(response.data, filename)
+        ElMessage.success('导出成功')
     } catch (error) {
-        console.error('导出加班记录失败:', error)
-        ElMessage.error(error instanceof Error ? error.message : '导出加班记录失败')
+        console.error('导出失败:', error)
+        ElMessage.error('导出失败，请重试')
     }
 }
 
 // 导出请假记录
 const handleExportLeave = async () => {
-    const leaveFiles = fileList.value.filter(file => file.type === 'leave')
-    if (leaveFiles.length === 0) {
-        ElMessage.warning('没有可导出的请假记录')
+    const leaveFile = fileList.value.find(file => file.type === 'leave')
+    if (!leaveFile) {
+        ElMessage.warning('请先上传请假记录')
         return
     }
 
     try {
-        const response = await fetch('/api/export/leave', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                file_ids: leaveFiles.map(file => file.preview.file_id)
-            })
-        })
+        const response = await attendanceApi.exportLeave(leaveFile.preview.file_id)
 
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.detail || '导出失败')
+        // 尝试从响应头中获取文件名
+        const headerFilename = getFilenameFromHeaders(response.headers)
+
+        // 如果响应头中有文件名，则使用它，否则使用前端生成的文件名
+        let filename
+        if (headerFilename) {
+            filename = headerFilename
+        } else {
+            // 获取当前日期并格式化为年月日
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = String(today.getMonth() + 1).padStart(2, '0')
+            const day = String(today.getDate()).padStart(2, '0')
+            const dateStr = `${year}${month}${day}`
+            filename = `${dateStr}请假记录.xlsx`
         }
 
-        // 获取文件名
-        const contentDisposition = response.headers.get('content-disposition')
-        let fileName = '请假明细表.xlsx'
-
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
-            if (filenameMatch && filenameMatch[1]) {
-                try {
-                    fileName = decodeURIComponent(filenameMatch[1])
-                } catch (e) {
-                    console.error('解码文件名失败:', e)
-                    fileName = filenameMatch[1]
-                }
-            }
-        }
-
-        // 下载文件
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-
-        ElMessage.success('请假记录导出成功')
+        downloadFile(response.data, filename)
+        ElMessage.success('导出成功')
     } catch (error) {
-        console.error('导出请假记录失败:', error)
-        ElMessage.error(error instanceof Error ? error.message : '导出请假记录失败')
+        console.error('导出失败:', error)
+        ElMessage.error('导出失败，请重试')
     }
 }
 
 // 导出考勤记录
 const handleExportAttendance = async () => {
     if (fileList.value.length === 0) {
-        ElMessage.warning('没有可导出的考勤记录')
+        ElMessage.warning('请先上传文件')
         return
     }
 
     try {
-        const response = await fetch('/api/export/attendance', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                file_ids: fileList.value.map(file => file.preview.file_id)
-            })
-        })
+        // 获取所有文件的ID
+        const fileIds = fileList.value.map(file => file.preview.file_id)
+        const response = await attendanceApi.exportAttendance(fileIds)
 
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.detail || '导出失败')
+        // 尝试从响应头中获取文件名
+        const headerFilename = getFilenameFromHeaders(response.headers)
+
+        // 如果响应头中有文件名，则使用它，否则使用前端生成的文件名
+        let filename
+        if (headerFilename) {
+            filename = headerFilename
+        } else {
+            // 获取当前日期并格式化为年月日
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = String(today.getMonth() + 1).padStart(2, '0')
+            const day = String(today.getDate()).padStart(2, '0')
+            const dateStr = `${year}${month}${day}`
+            filename = `${dateStr}考勤记录.xlsx`
         }
 
-        // 获取文件名
-        const contentDisposition = response.headers.get('content-disposition')
-        let fileName = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}加班统计表.xlsx`
-
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
-            if (filenameMatch && filenameMatch[1]) {
-                try {
-                    fileName = decodeURIComponent(filenameMatch[1])
-                } catch (e) {
-                    console.error('解码文件名失败:', e)
-                }
-            }
-        }
-
-        // 下载文件
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-
-        ElMessage.success('考勤记录导出成功')
+        downloadFile(response.data, filename)
+        ElMessage.success('导出成功')
     } catch (error) {
-        console.error('导出考勤记录失败:', error)
-        ElMessage.error(error instanceof Error ? error.message : '导出考勤记录失败')
+        console.error('导出失败:', error)
+        ElMessage.error('导出失败，请重试')
     }
 }
 </script>

@@ -21,19 +21,35 @@ export interface ProcessingConfig {
 export interface ColumnHeader {
     key: string
     label: string
-    type: string
     width: number
+    type: 'text' | 'number' | 'datetime'
 }
 
 export interface ExcelPreview {
-    headers: ColumnHeader[]
-    sample_data: Record<string, any>[]
-    total_rows: number
     file_id: string
+    total_rows: number
+    sample_data: any[]
+    headers: ColumnHeader[]
 }
 
 export interface ProcessingResponse {
     success: boolean
     message: string
     data?: any
+}
+
+export interface FileInfo {
+    id: string
+    name: string
+    type: 'overtime' | 'leave'  // 文件类型：加班或请假
+    preview: ExcelPreview
+    currentData: any[]
+    headers: ColumnHeader[]
+    currentPage: number
+    pageSize: number
+}
+
+export interface PaginationParams {
+    page: number
+    size: number
 } 
