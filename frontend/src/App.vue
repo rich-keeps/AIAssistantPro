@@ -2,14 +2,106 @@
 import { ElConfigProvider } from 'element-plus'
 import { Calendar, Setting, Cpu, Document } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import axios from 'axios'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
+
+// 系统名称
+const systemName = ref('AI智能化管理系统')
+
+// 系统主题色
+const themeColor = ref('#4CAF50')
+
+// Element Plus 全局配置
+const buttonConfig = {
+    autoInsertSpace: true
+}
+
+// 获取系统设置
+const fetchSystemSettings = async () => {
+    try {
+        const response = await axios.get('/api/settings/system')
+        if (response.data.success && response.data.data) {
+            const settings = response.data.data
+            if (settings.system_name) {
+                systemName.value = settings.system_name
+            }
+            if (settings.theme_color) {
+                themeColor.value = settings.theme_color
+                applyThemeColor(settings.theme_color)
+            }
+        }
+    } catch (error) {
+        console.error('获取系统设置失败:', error)
+    }
+}
+
+// 应用主题色
+const applyThemeColor = (color: string) => {
+    // 设置CSS变量
+    document.documentElement.style.setProperty('--primary-color', color)
+    document.documentElement.style.setProperty('--el-color-primary', color)
+
+    // 生成不同亮度的主题色变体
+    const generateLighterColor = (color: string, percent: number) => {
+        const r = parseInt(color.slice(1, 3), 16)
+        const g = parseInt(color.slice(3, 5), 16)
+        const b = parseInt(color.slice(5, 7), 16)
+
+        const lightenValue = (value: number, percent: number) => {
+            return Math.min(255, Math.floor(value + (255 - value) * percent / 100))
+        }
+
+        const rLighter = lightenValue(r, percent)
+        const gLighter = lightenValue(g, percent)
+        const bLighter = lightenValue(b, percent)
+
+        return `#${rLighter.toString(16).padStart(2, '0')}${gLighter.toString(16).padStart(2, '0')}${bLighter.toString(16).padStart(2, '0')}`
+    }
+
+    const generateDarkerColor = (color: string, percent: number) => {
+        const r = parseInt(color.slice(1, 3), 16)
+        const g = parseInt(color.slice(3, 5), 16)
+        const b = parseInt(color.slice(5, 7), 16)
+
+        const darkenValue = (value: number, percent: number) => {
+            return Math.max(0, Math.floor(value * (100 - percent) / 100))
+        }
+
+        const rDarker = darkenValue(r, percent)
+        const gDarker = darkenValue(g, percent)
+        const bDarker = darkenValue(b, percent)
+
+        return `#${rDarker.toString(16).padStart(2, '0')}${gDarker.toString(16).padStart(2, '0')}${bDarker.toString(16).padStart(2, '0')}`
+    }
+
+    // 设置不同亮度的主题色变体
+    document.documentElement.style.setProperty('--el-color-primary-light-3', generateLighterColor(color, 30))
+    document.documentElement.style.setProperty('--el-color-primary-light-5', generateLighterColor(color, 50))
+    document.documentElement.style.setProperty('--el-color-primary-light-7', generateLighterColor(color, 70))
+    document.documentElement.style.setProperty('--el-color-primary-light-8', generateLighterColor(color, 80))
+    document.documentElement.style.setProperty('--el-color-primary-light-9', generateLighterColor(color, 90))
+    document.documentElement.style.setProperty('--el-color-primary-dark-2', generateDarkerColor(color, 20))
+    document.documentElement.style.setProperty('--el-color-primary-light-2', generateLighterColor(color, 20))
+    document.documentElement.style.setProperty('--el-border-color-hover', generateLighterColor(color, 30))
+    document.documentElement.style.setProperty('--el-border-color-focus', generateLighterColor(color, 20))
+}
+
+// 监听系统名称变化，更新浏览器标题
+watch(systemName, (newName) => {
+    document.title = newName
+}, { immediate: true })
+
+// 页面加载时获取系统设置
+onMounted(() => {
+    fetchSystemSettings()
+})
 </script>
 
 <template>
-    <el-config-provider>
+    <el-config-provider :button-config="buttonConfig">
         <div class="app-wrapper">
             <!-- 侧边栏 -->
             <div class="sidebar">
@@ -19,7 +111,7 @@ const activeMenu = computed(() => route.path)
                             <Cpu />
                         </el-icon>
                     </div>
-                    <span>AI智能化管理系统</span>
+                    <span>{{ systemName }}</span>
                 </div>
 
                 <el-menu :default-active="activeMenu" router>
@@ -94,6 +186,35 @@ const activeMenu = computed(() => route.path)
     --el-color-primary-light-8: #dcedc8;
     --el-color-primary-light-9: #f1f8e9;
     --el-color-primary-dark-2: #388e3c;
+
+    /* 添加焦点边框颜色 */
+    --el-color-primary-light-2: #66bb6a;
+    --el-border-color-hover: #81c784;
+    --el-border-color-focus: #66bb6a;
+}
+
+/* 添加全局样式覆盖Element Plus的焦点样式 */
+.el-button:focus,
+.el-button:active,
+.el-input:focus,
+.el-input:active,
+.el-select:focus,
+.el-select:active,
+.el-checkbox:focus,
+.el-checkbox:active {
+    border-color: var(--el-color-primary) !important;
+    outline-color: var(--el-color-primary) !important;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2) !important;
+}
+
+/* 覆盖Element Plus的focus-visible样式 */
+.el-button:focus-visible,
+.el-input:focus-visible,
+.el-select:focus-visible,
+.el-checkbox:focus-visible {
+    outline: 2px solid var(--el-color-primary) !important;
+    outline-offset: 1px !important;
+    border-color: var(--el-color-primary) !important;
 }
 
 body {
