@@ -7,17 +7,34 @@ export interface ReportGenerateParams {
     dates: string[]
 }
 
+/**
+ * 报表生成相关API
+ */
 export const reportApi = {
     /**
      * 生成出差报表
-     * @param params 报表参数
-     * @returns Blob 文件流
+     * @param data 包含姓名、月份和日期列表的请求数据
+     * @returns Promise<any>
      */
-    generateReport(params: ReportGenerateParams): Promise<AxiosResponse<Blob>> {
+    generateReport(data: any) {
         return request({
             url: '/api/report/generate',
             method: 'post',
-            data: params,
+            data,
+            responseType: 'blob'
+        })
+    },
+
+    /**
+     * 生成报销明细表
+     * @param data 包含姓名、月份和报销明细列表的请求数据
+     * @returns Promise<any>
+     */
+    generateExpenseReport(data: any) {
+        return request({
+            url: '/api/report/expense',
+            method: 'post',
+            data,
             responseType: 'blob'
         })
     }

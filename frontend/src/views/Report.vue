@@ -139,7 +139,7 @@
                                     <div class="expense-total-content">
                                         <span>合计金额：</span>
                                         <span class="expense-total-amount">{{ calculateTotalAmount().toFixed(2)
-                                            }}</span>
+                                        }}</span>
                                     </div>
                                 </div>
 
@@ -402,7 +402,7 @@ const handleGenerateExpense = async () => {
         ElMessage.warning('请输入填报人姓名')
         return
     }
-    if (!expenseMonth) {
+    if (!expenseMonth.value) {
         ElMessage.warning('请选择报销周期')
         return
     }
@@ -422,8 +422,8 @@ const handleGenerateExpense = async () => {
             ElMessage.warning(`第${i + 1}条明细的事项不能为空`)
             return
         }
-        if (!item.reason) {
-            ElMessage.warning(`第${i + 1}条明细的事由不能为空`)
+        if (!item.invoiceNo) {
+            ElMessage.warning(`第${i + 1}条明细的发票号不能为空`)
             return
         }
         if (!item.amount) {
@@ -439,31 +439,29 @@ const handleGenerateExpense = async () => {
         const params = {
             name: expenseName.value.trim(),
             month: expenseMonth.value,
-            dates: [], // 添加空的dates数组以满足API参数要求
             expense_items: expenseItems.value.map(item => ({
                 date: item.date,
                 type: item.type,
                 reason: item.reason,
                 amount: item.amount,
-                invoice_no: item.invoiceNo,
-                remark: item.remark
+                invoice_no: item.invoiceNo || '',
+                remark: item.remark || ''
             }))
         }
 
-        // 这里应该调用报销统计的API
-        // 实际项目中应该替换为正确的API
-        const response = await reportApi.generateReport(params)
+        // 调用报销明细表生成API
+        const response = await reportApi.generateExpenseReport(params)
 
         // 下载文件
         downloadFile(
             response.data,
-            `${params.name}-${params.month}报销明细表.xlsx`
+            `${params.month.replace('/', '')}${params.name}报销明细.xlsx`
         )
 
-        ElMessage.success('报销报表生成成功')
+        ElMessage.success('报销明细表生成成功')
     } catch (error) {
-        console.error('生成报销报表失败:', error)
-        ElMessage.error('生成报销报表失败，请重试')
+        console.error('生成报销明细表失败:', error)
+        ElMessage.error('生成报销明细表失败，请重试')
     } finally {
         expenseLoading.value = false
     }
