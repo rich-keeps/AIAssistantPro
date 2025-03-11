@@ -9,46 +9,50 @@
             <el-tabs v-model="activeTab" class="report-tabs">
                 <!-- 出差统计 -->
                 <el-tab-pane label="出差统计" name="business-trip">
-                    <el-card class="report-card">
-                        <template #header>
-                            <div class="card-header">
-                                <span>出差统计配置</span>
-                            </div>
-                        </template>
+                    <div class="expense-config-card">
+                        <div class="expense-config-header">
+                            <span>出差统计配置</span>
+                        </div>
 
-                        <el-form label-width="90px">
-                            <el-form-item label="出差人" required>
-                                <el-input v-model="travelerName" placeholder="请输入出差人姓名" maxlength="20" show-word-limit
-                                    clearable />
-                            </el-form-item>
-
-                            <el-form-item label="选择年月">
-                                <el-date-picker v-model="selectedDate" type="month" placeholder="请选择年月"
-                                    format="YYYY年MM月" @change="handleMonthChange" />
-                            </el-form-item>
-
-                            <el-form-item label="选择日期" v-if="daysInMonth.length > 0">
-                                <div class="days-checkbox-group">
-                                    <el-checkbox v-model="checkAll" @change="handleCheckAllChange">全选</el-checkbox>
-                                    <el-divider />
-                                    <el-checkbox-group v-model="selectedDays" @change="handleCheckedDaysChange">
-                                        <el-checkbox v-for="day in daysInMonth" :key="day.date" :label="day.date"
-                                            :class="{ 'is-workday': day.isWorkday }">
-                                            {{ day.label }}
-                                        </el-checkbox>
-                                    </el-checkbox-group>
+                        <div class="expense-form">
+                            <div class="expense-form-row">
+                                <div class="expense-form-item">
+                                    <label class="expense-form-label required">出差人</label>
+                                    <el-input v-model="travelerName" placeholder="请输入出差人姓名" maxlength="20"
+                                        show-word-limit clearable />
                                 </div>
-                            </el-form-item>
 
-                            <el-form-item>
-                                <el-button type="primary" @click="handleGenerateBusinessTrip"
-                                    :loading="businessTripLoading"
-                                    :disabled="!selectedDate || selectedDays.length === 0 || !travelerName.trim()">
-                                    {{ businessTripLoading ? '正在生成...' : '生成出差报表' }}
-                                </el-button>
-                            </el-form-item>
-                        </el-form>
-                    </el-card>
+                                <div class="expense-form-item">
+                                    <label class="expense-form-label required">选择年月</label>
+                                    <el-date-picker v-model="selectedDate" type="month" placeholder="请选择年月"
+                                        format="YYYY年MM月" @change="handleMonthChange" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="expense-detail-section">
+                            <div class="expense-detail-header">出差日期选择</div>
+
+                            <div class="days-checkbox-group">
+                                <el-checkbox v-model="checkAll" @change="handleCheckAllChange">全选</el-checkbox>
+                                <el-divider />
+                                <el-checkbox-group v-model="selectedDays" @change="handleCheckedDaysChange">
+                                    <el-checkbox v-for="day in daysInMonth" :key="day.date" :label="day.date"
+                                        :class="{ 'is-workday': day.isWorkday }">
+                                        {{ day.label }}
+                                    </el-checkbox>
+                                </el-checkbox-group>
+                            </div>
+                        </div>
+
+                        <div class="expense-actions">
+                            <el-button type="primary" @click="handleGenerateBusinessTrip" :loading="businessTripLoading"
+                                :disabled="!selectedDate || selectedDays.length === 0 || !travelerName.trim()"
+                                class="generate-btn">
+                                {{ businessTripLoading ? '正在生成...' : '生成出差报表' }}
+                            </el-button>
+                        </div>
+                    </div>
                 </el-tab-pane>
 
                 <!-- 报销统计 -->
@@ -139,7 +143,7 @@
                                     <div class="expense-total-content">
                                         <span>合计金额：</span>
                                         <span class="expense-total-amount">{{ calculateTotalAmount().toFixed(2)
-                                        }}</span>
+                                            }}</span>
                                     </div>
                                 </div>
 
@@ -520,32 +524,21 @@ const handleGenerateExpense = async () => {
 }
 
 .days-checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-    padding: 0 8px;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 4px;
 }
 
 .el-checkbox-group {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
-    width: 100%;
+    gap: 12px;
+    margin-top: 16px;
 }
 
 .el-checkbox {
-    margin: 0 !important;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    border-radius: 4px;
-    transition: background-color 0.3s;
-    font-size: 13px;
-}
-
-.el-checkbox:hover {
-    background-color: var(--el-fill-color-light);
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 .is-workday {
@@ -646,16 +639,14 @@ const handleGenerateExpense = async () => {
 }
 
 .expense-detail-section {
-    padding: 0 20px;
+    padding: 0 20px 20px;
 }
 
 .expense-detail-header {
     font-size: 14px;
-    font-weight: 500;
     color: #606266;
-    margin: 16px 0;
-    padding-left: 8px;
-    border-left: 3px solid #67c23a;
+    margin: 20px 0 12px;
+    font-weight: 500;
 }
 
 .expense-table {
@@ -761,13 +752,22 @@ const handleGenerateExpense = async () => {
     padding: 20px;
     display: flex;
     justify-content: center;
+    border-top: 1px solid #f0f0f0;
 }
 
 .generate-btn {
-    width: 140px;
+    min-width: 120px;
 }
 
 :deep(.el-input-number .el-input__inner) {
     text-align: left;
+}
+
+:deep(.el-checkbox__label) {
+    font-size: 13px;
+}
+
+:deep(.el-divider--horizontal) {
+    margin: 16px 0;
 }
 </style>
