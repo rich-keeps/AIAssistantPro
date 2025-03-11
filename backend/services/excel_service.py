@@ -489,6 +489,45 @@ class ExcelService:
         导出考勤记录
         """
         try:
+            # 定义计算天数的函数
+            def calculate_days(total_hours):
+                # 如果总时长为负数，说明请假时长大于加班时长
+                if total_hours < 0:
+                    # 取绝对值后计算
+                    abs_hours = abs(total_hours)
+                    # 计算整天数
+                    full_days = abs_hours // 8
+                    # 计算余下的小时数
+                    remaining_hours = abs_hours % 8
+                    
+                    # 根据余下的小时数调整天数
+                    if remaining_hours > 4:
+                        full_days += 1
+                    elif remaining_hours == 4:
+                        full_days += 0.5
+                        
+                    # 返回负数天数
+                    return -full_days
+                else:
+                    # 正数时长的处理保持不变
+                    if total_hours < 4:
+                        return 0
+                    elif total_hours == 4:
+                        return 0.5
+                    else:
+                        # 计算整天数
+                        full_days = total_hours // 8
+                        # 计算余下的小时数
+                        remaining_hours = total_hours % 8
+                        
+                        # 根据余下的小时数调整天数
+                        if remaining_hours > 4:
+                            full_days += 1
+                        elif remaining_hours == 4:
+                            full_days += 0.5
+                            
+                        return full_days
+
             print(f"开始处理考勤记录导出，文件ID列表: {file_ids}")
             
             # 创建一个列表存储所有开始时间
@@ -738,45 +777,6 @@ class ExcelService:
                     print(f"处理文件出错: {str(e)}")
                     continue
             
-            # 计算总时长(天)
-            def calculate_days(total_hours):
-                # 如果总时长为负数，说明请假时长大于加班时长
-                if total_hours < 0:
-                    # 取绝对值后计算
-                    abs_hours = abs(total_hours)
-                    # 计算整天数
-                    full_days = abs_hours // 8
-                    # 计算余下的小时数
-                    remaining_hours = abs_hours % 8
-                    
-                    # 根据余下的小时数调整天数
-                    if remaining_hours > 4:
-                        full_days += 1
-                    elif remaining_hours == 4:
-                        full_days += 0.5
-                        
-                    # 返回负数天数
-                    return -full_days
-                else:
-                    # 正数时长的处理保持不变
-                    if total_hours < 4:
-                        return 0
-                    elif total_hours == 4:
-                        return 0.5
-                    else:
-                        # 计算整天数
-                        full_days = total_hours // 8
-                        # 计算余下的小时数
-                        remaining_hours = total_hours % 8
-                        
-                        # 根据余下的小时数调整天数
-                        if remaining_hours > 4:
-                            full_days += 1
-                        elif remaining_hours == 4:
-                            full_days += 0.5
-                            
-                        return full_days
-
             # 处理每个人的数据
             rows = []
             for name, data in person_data.items():
