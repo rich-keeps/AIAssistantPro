@@ -1,0 +1,138 @@
+# 后端 (Python) 忽略规则
+# Python编译缓存（所有目录）
+__pycache__/
+# Python编译缓存（所有子目录）
+**/__pycache__/
+# Python编译文件（.pyc, .pyo, .pyd）
+*.py[cod]
+# Python编译的共享库文件
+*.so
+# Python编译的动态库文件（Mac）
+*.dylib
+# Python编译的动态库文件（Windows）
+*.dll
+# Python虚拟环境
+venv/
+# Python虚拟环境（通用名称）
+env/
+# 环境变量文件
+.env
+# Python包信息
+*.egg-info/
+# Python安装配置
+.installed.cfg
+# Python包文件
+*.egg
+# 构建目录
+build/
+# 分发目录
+dist/
+# Pytest缓存
+.pytest_cache/
+# 测试覆盖率数据
+.coverage
+# 测试覆盖率报告目录
+htmlcov/
+
+# 项目特定目录（保留占位文件）
+# 上传文件目录
+backend/uploads/*
+# 保留上传文件目录的占位文件
+!backend/uploads/.gitkeep
+# 处理后的文件目录
+backend/processed/*
+# 保留处理文件目录的占位文件
+!backend/processed/.gitkeep
+
+# 前端 (Node.js) 忽略规则
+node_modules
+# NPM缓存目录
+.npm
+# PNPM缓存目录
+.pnpm
+# Yarn缓存目录
+.yarn/
+# Yarn缓存
+.yarn/cache
+# Yarn未打包的依赖
+.yarn/unplugged
+# Yarn构建状态
+.yarn/build-state.yml
+# Yarn安装状态
+.yarn/install-state.gz
+# 构建输出目录
+dist/
+# 所有子目录下的构建输出目录
+**/dist/
+# SSR构建输出目录
+dist-ssr/
+# 所有子目录下的SSR构建输出目录
+**/dist-ssr/
+# 测试覆盖率报告
+coverage/
+# 所有子目录下的测试覆盖率报告
+**/coverage/
+# 本地配置文件
+*.local
+# 所有日志文件
+*.log
+# 所有子目录下的日志文件
+**/*.log
+# NPM调试日志
+npm-debug.log*
+# Yarn调试日志
+yarn-debug.log*
+# Yarn错误日志
+yarn-error.log*
+# PNPM调试日志
+.pnpm-debug.log*
+# 缓存文件目录
+.cache/
+# 所有子目录下的缓存文件目录
+**/.cache/
+
+# IDE和编辑器文件
+# IntelliJ IDEA配置
+.idea/
+# Visual Studio Code配置
+.vscode/
+# Visual Studio用户配置
+*.suo
+# Node.js Tools for Visual Studio
+*.ntvs*
+# Node.js项目文件
+*.njsproj
+# Visual Studio解决方案
+*.sln
+# Vim临时文件
+*.sw?
+
+# 操作系统生成的文件
+# Mac系统文件
+.DS_Store
+# Mac系统文件
+.DS_Store?
+# Mac系统临时文件
+._*
+# Mac聚焦索引文件
+.Spotlight-V100
+# Mac废纸篓文件
+.Trashes
+# Windows缩略图缓存
+ehthumbs.db
+# Windows缩略图数据库
+Thumbs.db
+
+# Cursor编辑器特定文件
+# Cursor编辑器规则文件
+.cursorrules
+
+# 环境变量文件（只提交示例文件）
+# 注意：.env已经在前面被忽略
+# 所有环境变量示例文件不忽略
+!*.env.example
+
+# 重要说明：package.json、requirements.txt 和 package-lock.json 等依赖配置文件
+# 会被正常提交，因为它们没有被上述规则忽略，这是预期行为
+
+
