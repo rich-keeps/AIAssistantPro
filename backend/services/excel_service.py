@@ -12,7 +12,7 @@ from services.settings_service import settings_service
 
 class ExcelService:
     def __init__(self):
-        self.upload_dir = "uploads/excel"
+        self.upload_dir = "uploads"
         os.makedirs(self.upload_dir, exist_ok=True)
         self.files: Dict[str, Dict[str, Any]] = {}  # 存储文件ID和文件信息的映射
         self.file_cache: Dict[str, pd.DataFrame] = {}

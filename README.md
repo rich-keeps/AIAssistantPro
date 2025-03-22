@@ -72,6 +72,7 @@ project/
 │   ├── services/           # 业务逻辑
 │   ├── utils/              # 工具函数
 │   └── main.py            # 应用入口
+└── docs/                   # 项目文档
 ```
 
 ## 环境要求
@@ -108,16 +109,40 @@ project/
    npm run test:unit
    ```
 
-### 后端开发环境 
-1. **安装依赖**
+### 后端开发环境
+1. **创建虚拟环境**
+   ```bash
+   cd backend
+   python -m venv venv
+   ```
+
+2. **激活虚拟环境**
+   - Windows:
+     ```bash
+     venv\\Scripts\\activate
+     ```
+   - macOS/Linux:
+     ```bash
+     source venv/bin/activate
+     ```
+
+3. **安装依赖**
    ```bash
    pip install -r requirements.txt
    ```
-2. **运行开发服务器**
+
+4. **配置环境变量**
+   复制.env.example为.env并根据需要修改配置
+
+5. **运行开发服务器**
    ```bash
-   python main.py
+   uvicorn main:app --reload
    ```
- 
+
+## API文档
+启动后端服务后，访问以下地址查看API文档：
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## 部署指南
 1. **前端部署**
@@ -162,4 +187,24 @@ project/
    - 检查依赖是否完整安装
    - 检查.env文件配置是否正确
 
- 
+## 更新日志
+### v0.1.0 (2024-03-11)
+- 项目初始化
+- 基础框架搭建
+- 文件上传功能
+- 数据展示功能
+
+## 贡献指南
+1. Fork本仓库
+2. 创建特性分支
+3. 提交变更
+4. 推送到分支
+5. 创建Pull Request
+
+## 许可证
+MIT License
+
+## 联系方式
+- 项目负责人：[姓名]
+- 邮箱：[邮箱地址]
+- 项目地址：[仓库地址]
