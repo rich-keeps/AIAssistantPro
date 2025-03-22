@@ -26,4 +26,9 @@ app.include_router(invoice.router, prefix="/api/invoice", tags=["发票处理"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
