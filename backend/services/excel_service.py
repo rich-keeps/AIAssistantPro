@@ -78,28 +78,51 @@ class ExcelService:
         """
         headers = []
         for col in df.columns:
-            # 获取列的数据类型
-            dtype = df[col].dtype
-            col_type = 'string'
-            if np.issubdtype(dtype, np.number):
-                col_type = 'number'
-            elif np.issubdtype(dtype, np.datetime64):
-                col_type = 'datetime'
-            
-            # 计算建议的列宽度（基于内容长度）
-            max_length = max(
-                len(str(col)),  # 表头长度
-                df[col].astype(str).str.len().max() or 0  # 数据最大长度
-            )
-            # 设置最小宽度100，最大宽度300
-            suggested_width = min(max(100, max_length * 15), 300)
-            
-            headers.append({
-                'key': str(col),
-                'label': str(col),
-                'type': col_type,
-                'width': suggested_width
-            })
+            try:
+                # 获取列的数据类型
+                col_type = 'string'  # 默认为字符串类型
+                
+                # 安全地获取列数据
+                col_data = df[col].copy()
+                
+                # 检查数据类型
+                if pd.api.types.is_numeric_dtype(col_data):
+                    col_type = 'number'
+                elif pd.api.types.is_datetime64_any_dtype(col_data):
+                    col_type = 'datetime'
+                
+                # 计算建议的列宽度（基于内容长度）
+                # 计算表头长度
+                header_length = len(str(col))
+                
+                # 安全地计算数据最大长度
+                try:
+                    data_length = col_data.astype(str).str.len().max()
+                    if pd.isna(data_length):
+                        data_length = 0
+                except:
+                    data_length = 0
+                
+                max_length = max(header_length, data_length)
+                
+                # 设置最小宽度100，最大宽度300
+                suggested_width = min(max(100, max_length * 15), 300)
+                
+                headers.append({
+                    'key': str(col),
+                    'label': str(col),
+                    'type': col_type,
+                    'width': suggested_width
+                })
+            except Exception as e:
+                print(f"处理列 {col} 时出错: {str(e)}")
+                # 如果处理出错，添加一个基本的列信息
+                headers.append({
+                    'key': str(col),
+                    'label': str(col),
+                    'type': 'string',
+                    'width': 100
+                })
         
         return headers
 
