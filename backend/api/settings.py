@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from models.schemas import SystemSettings, UpdateSystemSettingsRequest, ProcessingResponse
+from models.schemas import UpdateSystemSettingsRequest, ProcessingResponse
 from services.settings_service import settings_service
 from services.excel_service import ExcelService
 
