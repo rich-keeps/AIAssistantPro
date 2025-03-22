@@ -1,22 +1,20 @@
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import uuid
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from models.schemas import ExcelPreview, PaginatedData
 import math
 import calendar
-from chinese_calendar import is_workday, is_holiday
+from chinese_calendar import is_workday
 from services.settings_service import settings_service
 
 class ExcelService:
     def __init__(self):
-        self.upload_dir = "uploads"
+        self.upload_dir = "uploads/excel"
         os.makedirs(self.upload_dir, exist_ok=True)
         self.files: Dict[str, Dict[str, Any]] = {}  # 存储文件ID和文件信息的映射
         self.file_cache: Dict[str, pd.DataFrame] = {}
-        self.df_cache: Dict[str, pd.DataFrame] = {}
 
     def ensure_upload_dir(self):
         """确保上传目录存在"""
@@ -213,9 +211,9 @@ class ExcelService:
         
         return {name: group for name, group in df.groupby(category_column)}
 
-    def export_excel(self, df: pd.DataFrame, file_path: str, sheet_name: str = 'Sheet1'):
+    def export_excel(self, df: pd.DataFrame, file_path: str):
         """导出数据到Excel文件"""
-        df.to_excel(file_path, sheet_name=sheet_name, index=False)
+        df.to_excel(file_path, index=False)
 
     async def process_file(self, file_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """处理Excel文件"""
@@ -816,7 +814,9 @@ class ExcelService:
                 def format_number(value):
                     if value == 0:
                         return 0
-                    return int(value) if value.is_integer() else round(value, 1)
+                    # 先将值转换为float再判断是否为整数
+                    float_value = float(value)
+                    return int(value) if float_value.is_integer() else round(value, 1)
                 
                 # 应用数字格式化
                 row['加班时长'] = format_number(data['加班时长'])
@@ -905,7 +905,8 @@ class ExcelService:
                             try:
                                 if isinstance(value, (int, float)):
                                     # 判断是否为整数
-                                    if float(value).is_integer():
+                                    float_value = float(value)
+                                    if float_value.is_integer():
                                         worksheet.write(row, col, int(value), cell_format)
                                     else:
                                         worksheet.write(row, col, round(float(value), 1), decimal_format)

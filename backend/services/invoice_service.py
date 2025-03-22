@@ -23,7 +23,6 @@ except ImportError:
 # 尝试导入图像处理依赖
 try:
     import cv2
-    import numpy as np
     CV2_AVAILABLE = True
 except ImportError:
     CV2_AVAILABLE = False

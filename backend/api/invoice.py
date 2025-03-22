@@ -1,5 +1,4 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Optional
 from models.schemas import ProcessingResponse
 from services.invoice_service import InvoiceService
 
