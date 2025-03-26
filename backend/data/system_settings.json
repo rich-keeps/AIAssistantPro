@@ -1,4 +1,5 @@
 {
   "max_files": 50,
-  "system_name": "AI考勤系统"
+  "system_name": "AI考勤系统",
+  "theme_color": "#4CAF50"
 }

@@ -29,75 +29,6 @@
                                 </div>
                                 <div class="color-hint">选择系统主题色，将影响整个系统的颜色风格</div>
                             </div>
-
-                            <!-- 预览效果区域 -->
-                            <div class="preview-container">
-                                <div class="preview-header">预览效果</div>
-                                <div class="preview-content">
-                                    <div class="preview-description">以下是主题色应用后的效果预览，保存后将应用到整个系统</div>
-
-                                    <div class="preview-demo">
-                                        <div class="theme-title" :style="{ backgroundColor: basicSettings.themeColor }">
-                                            主题色标题
-                                        </div>
-
-                                        <div class="preview-controls">
-                                            <div class="control-row">
-                                                <div class="control-label">按钮：</div>
-                                                <div class="control-content">
-                                                    <el-button type="primary" :style="{
-                                                        '--el-button-bg-color': basicSettings.themeColor,
-                                                        '--el-button-border-color': basicSettings.themeColor
-                                                    }">主要按钮</el-button>
-                                                    <el-button plain :style="{
-                                                        borderColor: basicSettings.themeColor,
-                                                        color: basicSettings.themeColor
-                                                    }">补素按钮</el-button>
-                                                </div>
-                                            </div>
-
-                                            <div class="control-row">
-                                                <div class="control-label">标签：</div>
-                                                <div class="control-content">
-                                                    <el-tag :style="{
-                                                        backgroundColor: lightenColor(basicSettings.themeColor, 90),
-                                                        borderColor: lightenColor(basicSettings.themeColor, 80),
-                                                        color: basicSettings.themeColor
-                                                    }">标签</el-tag>
-                                                    <el-tag type="info">普通标签</el-tag>
-                                                </div>
-                                            </div>
-
-                                            <div class="control-row">
-                                                <div class="control-label">开关：</div>
-                                                <div class="control-content">
-                                                    <el-switch v-model="previewSwitch"
-                                                        :style="{ '--el-switch-on-color': basicSettings.themeColor }" />
-                                                    <span class="status-text">开启</span>
-                                                </div>
-                                            </div>
-
-                                            <div class="control-row">
-                                                <div class="control-label">复选框：</div>
-                                                <div class="control-content">
-                                                    <el-checkbox v-model="previewCheckbox"
-                                                        :style="{ '--el-checkbox-checked-bg-color': basicSettings.themeColor }">选项</el-checkbox>
-                                                </div>
-                                            </div>
-
-                                            <div class="control-row">
-                                                <div class="control-label">单选框：</div>
-                                                <div class="control-content">
-                                                    <el-radio v-model="previewRadio" :label="1"
-                                                        :style="{ '--el-radio-checked-bg-color': basicSettings.themeColor }">选项1</el-radio>
-                                                    <el-radio v-model="previewRadio" :label="2"
-                                                        :style="{ '--el-radio-checked-bg-color': basicSettings.themeColor }">选项2</el-radio>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </el-form-item>
                 </el-form>
@@ -155,76 +86,55 @@ const fetchSystemSettings = async () => {
     try {
         const response = await axios.get('/api/settings/system')
         if (response.data.success) {
-            const settings = response.data.data
+            const settings = response.data.data || {}
+
+            // 设置文件数量
             if (settings.max_files) {
                 fileSettings.value.maxFiles = settings.max_files
             }
+
+            // 设置系统名称
             if (settings.system_name) {
                 basicSettings.value.systemName = settings.system_name
             }
+
+            // 设置主题色（如果返回了主题色数据）
             if (settings.theme_color) {
                 basicSettings.value.themeColor = settings.theme_color
                 currentAppliedTheme.value = settings.theme_color
-                // 应用主题色
-                applyThemeColor(settings.theme_color)
             }
-            ElMessage.success('系统设置加载成功')
+
+            // 无论接口是否返回主题色，都应用当前设置中的主题色
+            applyThemeColor(basicSettings.value.themeColor)
         }
     } catch (error) {
         console.error('获取系统设置失败:', error)
         ElMessage.error('获取系统设置失败')
+
+        // 发生错误时，仍应用当前设置的主题色
+        applyThemeColor(basicSettings.value.themeColor)
     }
 }
 
 // 应用主题色
 const applyThemeColor = (color: string) => {
-    // 设置CSS变量
-    document.documentElement.style.setProperty('--primary-color', color)
-    document.documentElement.style.setProperty('--el-color-primary', color)
+    // 创建根级CSS变量，使用Element Plus的变量命名规范
+    document.documentElement.style.setProperty('--el-color-primary', color);
 
-    // 生成不同亮度的主题色变体
-    const generateLighterColor = (color: string, percent: number) => {
-        const r = parseInt(color.slice(1, 3), 16)
-        const g = parseInt(color.slice(3, 5), 16)
-        const b = parseInt(color.slice(5, 7), 16)
+    // 使用CSS 颜色函数替代手动计算颜色变体
+    // 亮色变体
+    document.documentElement.style.setProperty('--el-color-primary-light-3', `color-mix(in srgb, ${color} 70%, white)`);
+    document.documentElement.style.setProperty('--el-color-primary-light-5', `color-mix(in srgb, ${color} 50%, white)`);
+    document.documentElement.style.setProperty('--el-color-primary-light-7', `color-mix(in srgb, ${color} 30%, white)`);
+    document.documentElement.style.setProperty('--el-color-primary-light-8', `color-mix(in srgb, ${color} 20%, white)`);
+    document.documentElement.style.setProperty('--el-color-primary-light-9', `color-mix(in srgb, ${color} 10%, white)`);
 
-        const lightenValue = (value: number, percent: number) => {
-            return Math.min(255, Math.floor(value + (255 - value) * percent / 100))
-        }
+    // 暗色变体
+    document.documentElement.style.setProperty('--el-color-primary-dark-2', `color-mix(in srgb, ${color} 80%, black)`);
 
-        const rLighter = lightenValue(r, percent)
-        const gLighter = lightenValue(g, percent)
-        const bLighter = lightenValue(b, percent)
-
-        return `#${rLighter.toString(16).padStart(2, '0')}${gLighter.toString(16).padStart(2, '0')}${bLighter.toString(16).padStart(2, '0')}`
-    }
-
-    const generateDarkerColor = (color: string, percent: number) => {
-        const r = parseInt(color.slice(1, 3), 16)
-        const g = parseInt(color.slice(3, 5), 16)
-        const b = parseInt(color.slice(5, 7), 16)
-
-        const darkenValue = (value: number, percent: number) => {
-            return Math.max(0, Math.floor(value * (100 - percent) / 100))
-        }
-
-        const rDarker = darkenValue(r, percent)
-        const gDarker = darkenValue(g, percent)
-        const bDarker = darkenValue(b, percent)
-
-        return `#${rDarker.toString(16).padStart(2, '0')}${gDarker.toString(16).padStart(2, '0')}${bDarker.toString(16).padStart(2, '0')}`
-    }
-
-    // 设置不同亮度的主题色变体
-    document.documentElement.style.setProperty('--el-color-primary-light-3', generateLighterColor(color, 30))
-    document.documentElement.style.setProperty('--el-color-primary-light-5', generateLighterColor(color, 50))
-    document.documentElement.style.setProperty('--el-color-primary-light-7', generateLighterColor(color, 70))
-    document.documentElement.style.setProperty('--el-color-primary-light-8', generateLighterColor(color, 80))
-    document.documentElement.style.setProperty('--el-color-primary-light-9', generateLighterColor(color, 90))
-    document.documentElement.style.setProperty('--el-color-primary-dark-2', generateDarkerColor(color, 20))
-    document.documentElement.style.setProperty('--el-color-primary-light-2', generateLighterColor(color, 20))
-    document.documentElement.style.setProperty('--el-border-color-hover', generateLighterColor(color, 30))
-    document.documentElement.style.setProperty('--el-border-color-focus', generateLighterColor(color, 20))
+    // 边框相关颜色
+    document.documentElement.style.setProperty('--el-border-color-hover', `color-mix(in srgb, ${color} 70%, white)`);
+    document.documentElement.style.setProperty('--el-border-color-focus', `color-mix(in srgb, ${color} 80%, white)`);
 }
 
 // 立即清理文件
@@ -281,28 +191,6 @@ const handleSave = async () => {
 onMounted(() => {
     fetchSystemSettings()
 })
-
-// 预览相关状态
-const previewSwitch = ref(true)
-const previewCheckbox = ref(true)
-const previewRadio = ref(1)
-
-// 辅助函数：生成更亮的颜色
-const lightenColor = (color: string, percent: number) => {
-    const r = parseInt(color.slice(1, 3), 16)
-    const g = parseInt(color.slice(3, 5), 16)
-    const b = parseInt(color.slice(5, 7), 16)
-
-    const lightenValue = (value: number, percent: number) => {
-        return Math.min(255, Math.floor(value + (255 - value) * percent / 100))
-    }
-
-    const rLighter = lightenValue(r, percent)
-    const gLighter = lightenValue(g, percent)
-    const bLighter = lightenValue(b, percent)
-
-    return `#${rLighter.toString(16).padStart(2, '0')}${gLighter.toString(16).padStart(2, '0')}${bLighter.toString(16).padStart(2, '0')}`
-}
 
 // 选择预设颜色
 const selectColor = (color: string) => {
@@ -427,125 +315,5 @@ const selectColor = (color: string) => {
     font-size: 13px;
     color: #606266;
     margin-top: 4px;
-}
-
-/* 预览效果区域 */
-.preview-container {
-    margin-top: 20px;
-    border: 1px solid #ebeef5;
-    border-radius: 8px;
-    overflow: hidden;
-    background-color: #f5f7fa;
-}
-
-.preview-header {
-    padding: 15px 20px;
-    font-size: 16px;
-    font-weight: 500;
-    color: #303133;
-    border-bottom: 1px solid #ebeef5;
-}
-
-.preview-content {
-    padding: 0 0 20px;
-}
-
-.preview-description {
-    padding: 15px 20px;
-    font-size: 13px;
-    color: #606266;
-}
-
-.preview-demo {
-    margin: 0 20px;
-    border: 1px solid #ebeef5;
-    border-radius: 6px;
-    overflow: hidden;
-    background-color: #fff;
-}
-
-.theme-title {
-    padding: 12px 16px;
-    color: #fff;
-    font-weight: 500;
-    font-size: 14px;
-}
-
-.preview-controls {
-    padding: 20px;
-}
-
-.control-row {
-    display: flex;
-    margin-bottom: 20px;
-    align-items: center;
-}
-
-.control-row:last-child {
-    margin-bottom: 0;
-}
-
-.control-label {
-    width: 80px;
-    font-size: 14px;
-    color: #606266;
-    text-align: right;
-    padding-right: 12px;
-    line-height: 32px;
-}
-
-.control-content {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.status-text {
-    margin-left: 8px;
-    font-size: 14px;
-    color: #606266;
-}
-
-/* 确保组件颜色正确 */
-:deep(.el-switch.is-checked .el-switch__core) {
-    background-color: var(--el-switch-on-color, var(--el-color-primary)) !important;
-    border-color: var(--el-switch-on-color, var(--el-color-primary)) !important;
-}
-
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-    background-color: var(--el-checkbox-checked-bg-color, var(--el-color-primary)) !important;
-    border-color: var(--el-checkbox-checked-bg-color, var(--el-color-primary)) !important;
-}
-
-:deep(.el-radio__input.is-checked .el-radio__inner) {
-    background-color: var(--el-radio-checked-bg-color, var(--el-color-primary)) !important;
-    border-color: var(--el-radio-checked-bg-color, var(--el-color-primary)) !important;
-}
-
-/* 确保复选框和单选框的颜色正确 */
-:deep(.el-checkbox__inner::after) {
-    border-color: #fff !important;
-}
-
-:deep(.el-radio__inner::after) {
-    background-color: #fff !important;
-}
-
-/* 确保开关的颜色正确 */
-:deep(.el-switch__core .el-switch__action) {
-    background-color: #fff !important;
-}
-
-/* 移除旧样式 */
-.preview-box,
-.preview-row,
-.row-label,
-.row-content,
-.switch-wrapper,
-.checkbox-wrapper,
-.radio-wrapper,
-.switch-text {
-    /* 这些类将被新的样式替代 */
 }
 </style>

@@ -23,15 +23,25 @@ class SettingsService:
         """加载系统设置"""
         if not os.path.exists(self.settings_file):
             # 如果设置文件不存在，创建默认设置
-            self.settings = self.default_settings
+            self.settings = self.default_settings.copy()
             self._save_settings()
         else:
             try:
                 with open(self.settings_file, 'r', encoding='utf-8') as f:
-                    self.settings = json.load(f)
+                    loaded_settings = json.load(f)
+                    
+                    # 确保加载的设置包含所有默认字段
+                    self.settings = self.default_settings.copy()
+                    self.settings.update(loaded_settings)
+                    
+                    # 检查是否有缺失字段，如果有则保存更新后的设置
+                    if len(self.settings) != len(loaded_settings):
+                        self._save_settings()
+                        print("系统设置已更新，补充了缺失的默认字段")
+                        
             except Exception as e:
                 print(f"加载系统设置失败: {str(e)}")
-                self.settings = self.default_settings
+                self.settings = self.default_settings.copy()
                 self._save_settings()
     
     def _save_settings(self):
@@ -50,7 +60,7 @@ class SettingsService:
         """更新系统设置"""
         # 只更新提供的设置项
         for key, value in settings.items():
-            if key in self.settings and value is not None:
+            if key in self.default_settings and value is not None:
                 self.settings[key] = value
         
         self._save_settings()

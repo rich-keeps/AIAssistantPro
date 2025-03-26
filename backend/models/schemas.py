@@ -7,6 +7,10 @@ class ProcessingResponse(BaseModel):
     message: str
     data: Optional[Any] = None
 
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
+
 class ColumnHeader(BaseModel):
     """表头信息模型"""
     key: str
@@ -23,12 +27,16 @@ class ExcelPreview(BaseModel):
 
 class PaginatedData(BaseModel):
     """分页数据模型"""
-    items: List[Dict[str, Any]]
-    total: int
-    page: int
-    size: int
-    total_pages: int
-    headers: List[ColumnHeader]
+    items: List[Dict[str, Any]] = []
+    total: int = 0
+    page: int = 1
+    size: int = 10
+    total_pages: int = 0
+    headers: List[ColumnHeader] = []
+
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
 
 class ExportRequest(BaseModel):
     """导出请求模型"""
