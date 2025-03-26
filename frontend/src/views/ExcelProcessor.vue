@@ -14,6 +14,11 @@
                     <el-button type="primary" :icon="Download" @click="handleExportAttendance" :disabled="!hasAnyFile">
                         导出考勤记录
                     </el-button>
+                    <!-- 修改请假记录合并按钮 -->
+                    <el-button type="danger" :icon="Download" @click="handleExportMergedLeave"
+                        :disabled="!hasMultipleLeaveFiles">
+                        导出合并请假记录
+                    </el-button>
                 </el-button-group>
             </div>
 
@@ -45,18 +50,19 @@
                     <template #header>
                         <div class="card-header">
                             <h2>请假记录上传</h2>
+                            <div class="card-subtitle">支持上传多个请假记录文件进行合并</div>
                         </div>
                     </template>
                     <el-upload class="upload-area" drag :action="API_ENDPOINTS.UPLOAD + '?type=leave'"
                         :on-success="handleLeaveUploadSuccess" :on-error="handleUploadError"
                         :before-upload="beforeUpload" accept=".xlsx,.xls" ref="leaveUploadRef"
-                        :on-remove="handleLeaveUploadRemove" :file-list="leaveFileList">
+                        :on-remove="handleLeaveUploadRemove" :limit="5" multiple :auto-upload="true">
                         <el-icon class="upload-icon">
                             <Upload />
                         </el-icon>
                         <div class="upload-text">
                             <span>将请假记录文件拖到此处或<em>点击上传</em></span>
-                            <p class="upload-tip">支持 .xlsx, .xls 格式文件</p>
+                            <p class="upload-tip">支持 .xlsx, .xls 格式文件，最多上传5个文件</p>
                         </div>
                     </el-upload>
                 </el-card>
@@ -143,17 +149,6 @@ const overtimeFileList = computed(() => {
         }))
 })
 
-// 计算请假记录文件列表
-const leaveFileList = computed(() => {
-    return fileList.value
-        .filter(file => file.type === 'leave')
-        .map(file => ({
-            name: file.name,
-            url: '#',
-            status: 'success'
-        }))
-})
-
 // 计算属性：是否有加班文件
 const hasOvertimeFile = computed(() => fileList.value.some(file => file.type === 'overtime'))
 
@@ -162,6 +157,12 @@ const hasLeaveFile = computed(() => fileList.value.some(file => file.type === 'l
 
 // 计算属性：是否有任何文件
 const hasAnyFile = computed(() => fileList.value.length > 0)
+
+// 计算属性：是否有多个请假记录文件（用于启用合并功能）
+const hasMultipleLeaveFiles = computed(() => {
+    const leaveFiles = fileList.value.filter(file => file.type === 'leave')
+    return leaveFiles.length >= 2
+})
 
 // 处理加班记录上传成功
 const handleOvertimeUploadSuccess = async (response: any, uploadFile: UploadFile) => {
@@ -202,12 +203,8 @@ const handleOvertimeUploadSuccess = async (response: any, uploadFile: UploadFile
 // 处理请假记录上传成功
 const handleLeaveUploadSuccess = async (response: any, uploadFile: UploadFile) => {
     if (response.success) {
-        // 移除之前的请假记录
-        const leaveIndex = fileList.value.findIndex(file => file.type === 'leave')
-        if (leaveIndex !== -1) {
-            await removeFile(leaveIndex)
-        }
-
+        // 注意：不再删除之前的请假记录，而是直接添加新的请假记录文件
+        // 这样就能支持合并多个请假记录文件的功能
         const newFile: FileInfo = {
             id: response.data.file_id,
             name: uploadFile.name,
@@ -316,6 +313,49 @@ const formatDate = (value: any) => {
         })
     } catch (e) {
         return value
+    }
+}
+
+// ============ 请假记录合并功能 ============
+// 导出合并后的请假记录
+const handleExportMergedLeave = async () => {
+    // 检查是否有足够的请假文件
+    const leaveFiles = fileList.value.filter(file => file.type === 'leave')
+    if (leaveFiles.length < 2) {
+        ElMessage.warning('需要至少两个请假记录文件才能合并导出')
+        return
+    }
+
+    try {
+        ElMessage.info('正在处理请假记录文件，请稍候...')
+
+        // 获取所有请假记录文件的ID
+        const leaveFileIds = leaveFiles.map(file => file.preview.file_id)
+
+        const response = await attendanceApi.exportMergedLeaveRecords(leaveFileIds)
+
+        // 尝试从响应头中获取文件名
+        const headerFilename = getFilenameFromHeaders(response.headers)
+
+        // 如果响应头中有文件名，则使用它，否则使用前端生成的文件名
+        let filename
+        if (headerFilename) {
+            filename = headerFilename
+        } else {
+            // 获取当前日期并格式化为年月日
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = String(today.getMonth() + 1).padStart(2, '0')
+            const day = String(today.getDate()).padStart(2, '0')
+            const dateStr = `${year}${month}${day}`
+            filename = `${dateStr}合并请假记录.xlsx`
+        }
+
+        downloadFile(response.data, filename)
+        ElMessage.success('合并请假记录导出成功')
+    } catch (error) {
+        console.error('导出合并请假记录失败:', error)
+        ElMessage.error('导出合并请假记录失败，请重试')
     }
 }
 
@@ -447,13 +487,15 @@ const handleExportAttendance = async () => {
     gap: 8px;
 }
 
-:deep(.el-button-group .el-button) {
-    border-radius: 6px !important;
-    padding: 8px 16px;
+.upload-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
 }
 
-:deep(.el-button-group .el-button + .el-button) {
-    margin-left: 0;
+.upload-card {
+    height: 100%;
 }
 
 .card-header {
@@ -462,129 +504,103 @@ const handleExportAttendance = async () => {
     align-items: center;
 }
 
-.file-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
 .card-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: #1a1a1a;
 }
 
-.upload-section {
-    display: flex;
-    gap: 24px;
+.card-subtitle {
+    font-size: 14px;
+    color: #909399;
+    margin-top: 4px;
 }
 
-.upload-card {
-    flex: 1;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-    border: none;
-}
-
-.upload-area {
-    width: 100%;
-}
-
-:deep(.el-upload-dragger) {
-    width: 100%;
-    height: 200px;
+.file-info {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 2px dashed var(--el-color-primary-light-3);
-}
-
-.upload-icon {
-    font-size: 48px;
-    color: var(--el-color-primary);
-    margin-bottom: 16px;
-}
-
-.upload-text {
-    text-align: center;
-}
-
-.upload-text em {
-    color: var(--el-color-primary);
-    font-style: normal;
-    margin: 0 4px;
-}
-
-.upload-tip {
-    font-size: 12px;
-    color: #64748b;
-    margin: 8px 0 0;
-}
-
-.preview-card {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-    border: none;
-}
-
-.total-count {
-    font-size: 14px;
-    color: #64748b;
-}
-
-.table-wrapper {
-    width: 100%;
-    margin-bottom: 20px;
-}
-
-:deep(.el-table) {
-    --el-table-border-color: #e5e7eb;
-    --el-table-header-bg-color: #f8fafc;
-    --el-table-row-hover-bg-color: #f1f5f9;
-}
-
-:deep(.el-table th) {
-    background: var(--el-table-header-bg-color);
-    font-weight: 600;
-    color: #1a1a1a;
-}
-
-.pagination-container {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-    padding: 0 20px;
-}
-
-:deep(.el-pagination) {
-    --el-pagination-button-bg-color: #ffffff;
-    --el-pagination-hover-color: var(--el-color-primary);
-    --el-pagination-button-disabled-bg-color: #f8fafc;
-}
-
-:deep(.el-pagination .el-select .el-input) {
-    width: 120px;
+    gap: 8px;
 }
 
 .file-tags {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
-:deep(.el-tag--success) {
-    --el-tag-bg-color: var(--el-color-success-light-9);
-    --el-tag-border-color: var(--el-color-success-light-5);
-    --el-tag-text-color: var(--el-color-success);
+.total-count {
+    color: #909399;
+    font-size: 14px;
 }
 
-:deep(.el-tag--warning) {
-    --el-tag-bg-color: var(--el-color-warning-light-9);
-    --el-tag-border-color: var(--el-color-warning-light-5);
-    --el-tag-text-color: var(--el-color-warning);
+:deep(.upload-area) {
+    width: 100%;
+}
+
+:deep(.upload-area .el-upload) {
+    width: 100%;
+}
+
+:deep(.upload-area .el-upload-dragger) {
+    width: 100%;
+    height: 180px;
+}
+
+.upload-icon {
+    font-size: 48px;
+    color: #8c939d;
+    margin-bottom: 16px;
+}
+
+.upload-text {
+    color: #606266;
+}
+
+.upload-text em {
+    color: #409eff;
+    font-style: normal;
+}
+
+.upload-tip {
+    color: #909399;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.table-wrapper {
+    margin-bottom: 16px;
+    width: 100%;
+    overflow-x: auto;
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 0 0;
+}
+
+/* 合并预览对话框样式 */
+.merge-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.merge-info {
+    margin-bottom: 16px;
+}
+
+:deep(.el-alert__title) {
+    font-size: 16px;
+}
+
+:deep(.el-dialog__body) {
+    padding-top: 10px;
+}
+
+@media (max-width: 1200px) {
+    .upload-section {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

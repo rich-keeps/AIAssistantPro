@@ -8,11 +8,24 @@ import math
 import calendar
 from chinese_calendar import is_workday
 from services.settings_service import settings_service
+import numpy as np
+import json
+import copy
 
 class ExcelService:
     def __init__(self):
+        """初始化Excel服务类
+        
+        创建上传目录并初始化文件映射和缓存
+        """
+        # 设置上传目录
         self.upload_dir = "uploads/excel"
+        
+        # 确保上传目录存在
         os.makedirs(self.upload_dir, exist_ok=True)
+        print(f"已确保上传目录存在: {os.path.abspath(self.upload_dir)}")
+        
+        # 初始化文件映射和缓存
         self.files: Dict[str, Dict[str, Any]] = {}  # 存储文件ID和文件信息的映射
         self.file_cache: Dict[str, pd.DataFrame] = {}
 
@@ -166,10 +179,13 @@ class ExcelService:
         # 处理表头信息
         headers = self.process_headers(df)
         
+        # 将DataFrame转换为Python原生类型（只取前10行）
+        sample_data = self.convert_df_to_native_types(df.head(10))
+        
         # 生成预览数据
         preview = ExcelPreview(
             headers=headers,
-            sample_data=df.head(10).to_dict('records'),
+            sample_data=sample_data,
             total_rows=len(df),
             file_id=file_id
         )
@@ -319,7 +335,9 @@ class ExcelService:
 
             # 获取当前页的数据
             page_data = df.iloc[start_idx:end_idx]
-            items = page_data.to_dict('records')
+            
+            # 将DataFrame数据转换为Python原生类型
+            items = self.convert_df_to_native_types(page_data)
 
             # 处理表头信息
             headers = self.process_headers(df)
@@ -939,3 +957,410 @@ class ExcelService:
             return is_workday(date)
         except ValueError:
             return False
+
+    async def merge_leave_records(self, file_ids: List[str]) -> Dict[str, Any]:
+        """合并请假记录
+        
+        将多个请假记录文件合并为一个，并去重
+        
+        Args:
+            file_ids: 请假记录文件ID列表
+            
+        Returns:
+            Dict[str, Any]: 合并后的数据，包含表头和预览数据
+        """
+        print(f"开始合并请假记录，文件ID: {file_ids}")
+        
+        # 检查文件ID是否存在
+        for file_id in file_ids:
+            if file_id not in self.files:
+                raise ValueError(f"文件ID {file_id} 不存在")
+            
+            # 检查文件类型是否为请假记录
+            if self.files[file_id]['type'] != 'leave':
+                raise ValueError(f"文件ID {file_id} 不是请假记录类型")
+        
+        # 读取所有请假记录文件
+        all_data = []
+        
+        for file_id in file_ids:
+            print(f"处理文件ID: {file_id}")
+            if file_id in self.file_cache:
+                # 从缓存中获取DataFrame
+                df = self.file_cache[file_id].copy()
+                print(f"从缓存获取DataFrame，列数: {len(df.columns)}, 行数: {len(df)}")
+            else:
+                # 重新读取文件
+                file_path = self.files[file_id]['path']
+                print(f"从文件读取DataFrame: {file_path}")
+                df = pd.read_excel(file_path, header=None)
+                
+                # 使用第一行作为列名
+                df.columns = df.iloc[0]
+                df = df.iloc[1:].reset_index(drop=True)
+                print(f"处理后DataFrame，列数: {len(df.columns)}, 行数: {len(df)}")
+                
+                # 存入缓存
+                self.file_cache[file_id] = df
+            
+            all_data.append(df)
+        
+        # 合并所有数据
+        if all_data:
+            print(f"合并 {len(all_data)} 个DataFrame")
+            merged_df = pd.concat(all_data, ignore_index=True)
+            print(f"合并后DataFrame，列数: {len(merged_df.columns)}, 行数: {len(merged_df)}")
+            
+            # 清洗数据
+            merged_df = self.clean_data(merged_df)
+            print(f"清洗后DataFrame，列数: {len(merged_df.columns)}, 行数: {len(merged_df)}")
+            
+            # 对合并后的数据进行去重
+            merged_df = merged_df.drop_duplicates()
+            print(f"去重后DataFrame，列数: {len(merged_df.columns)}, 行数: {len(merged_df)}")
+            
+            # 重置索引
+            merged_df = merged_df.reset_index(drop=True)
+            
+            # 处理表头信息
+            print("处理表头信息")
+            headers = self.process_headers(merged_df)
+            print(f"处理表头完成，共 {len(headers)} 个列")
+            
+            # 将 DataFrame 转换为可序列化的记录列表
+            print("开始转换DataFrame为原生类型")
+            try:
+                sample_data = self.convert_df_to_native_types(merged_df)
+                print(f"转换完成，共 {len(sample_data)} 条记录")
+            except Exception as e:
+                print(f"转换过程中出错: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+                raise
+            
+            # 确保所有值都是Python原生类型
+            result = {
+                "headers": [],
+                "sample_data": sample_data,
+                "total_rows": len(sample_data)
+            }
+            
+            # 确保headers中的所有值都是Python原生类型
+            for header in headers:
+                header_dict = {}
+                for key, value in header.items():
+                    # 转换可能的numpy类型为Python原生类型
+                    if hasattr(value, 'dtype'):
+                        if np.issubdtype(value.dtype, np.integer):
+                            header_dict[key] = int(value)
+                        elif np.issubdtype(value.dtype, np.floating):
+                            header_dict[key] = float(value)
+                        elif np.issubdtype(value.dtype, np.bool_):
+                            header_dict[key] = bool(value)
+                        else:
+                            header_dict[key] = str(value)
+                    else:
+                        header_dict[key] = value
+                result["headers"].append(header_dict)
+            
+            # 验证数据是否可序列化
+            try:
+                import json
+                # 尝试将结果序列化为JSON字符串，以确保不包含无法序列化的对象
+                json.dumps(result)
+                print("结果数据可序列化，有效")
+            except Exception as e:
+                print(f"结果数据序列化失败: {str(e)}")
+                # 如果序列化失败，再次尝试强制转换
+                import copy
+                safe_result = copy.deepcopy(result)
+                
+                def make_serializable(obj):
+                    if isinstance(obj, dict):
+                        return {k: make_serializable(v) for k, v in obj.items()}
+                    elif isinstance(obj, list):
+                        return [make_serializable(item) for item in obj]
+                    elif hasattr(obj, 'dtype'):
+                        if np.issubdtype(obj.dtype, np.integer):
+                            return int(obj)
+                        elif np.issubdtype(obj.dtype, np.floating):
+                            return float(obj)
+                        elif np.issubdtype(obj.dtype, np.bool_):
+                            return bool(obj)
+                        else:
+                            return str(obj)
+                    elif isinstance(obj, (str, int, float, bool, type(None))):
+                        return obj
+                    else:
+                        return str(obj)
+                
+                result = make_serializable(safe_result)
+                print("数据已强制转换为可序列化形式")
+            
+            return result
+        else:
+            raise ValueError("无法合并请假记录，数据为空")
+    
+    async def export_merged_leave(self, file_ids: List[str]) -> str:
+        """导出合并后的请假记录
+        
+        Args:
+            file_ids: 请假记录文件ID列表
+            
+        Returns:
+            str: 导出的Excel文件路径
+        """
+        print(f"开始合并并导出请假记录，文件ID: {file_ids}")
+        
+        # 检查文件ID是否存在
+        for file_id in file_ids:
+            if file_id not in self.files:
+                print(f"错误: 文件ID {file_id} 不存在")
+                raise ValueError(f"文件ID {file_id} 不存在")
+            
+            # 检查文件类型是否为请假记录
+            if self.files[file_id]['type'] != 'leave':
+                print(f"错误: 文件ID {file_id} 不是请假记录类型，而是 {self.files[file_id]['type']}")
+                raise ValueError(f"文件ID {file_id} 不是请假记录类型")
+        
+        # 读取所有请假记录文件
+        all_data = []
+        
+        for file_id in file_ids:
+            print(f"处理文件ID: {file_id}")
+            file_path = self.files[file_id]['path']
+            print(f"文件路径: {file_path}")
+            
+            if not os.path.exists(file_path):
+                print(f"错误: 文件不存在于磁盘: {file_path}")
+                raise ValueError(f"文件 {file_path} 不存在于磁盘")
+            
+            try:
+                if file_id in self.file_cache:
+                    # 从缓存中获取DataFrame
+                    df = self.file_cache[file_id].copy()
+                    print(f"从缓存获取DataFrame，列数: {len(df.columns)}, 行数: {len(df)}")
+                else:
+                    # 重新读取文件
+                    print(f"从文件读取DataFrame: {file_path}")
+                    try:
+                        df = pd.read_excel(file_path, header=None)
+                        print(f"成功读取文件, 原始形状: {df.shape}")
+                        
+                        if len(df) == 0:
+                            print(f"警告: 文件 {file_path} 没有数据行")
+                            continue
+                            
+                        # 使用第一行作为列名
+                        df.columns = df.iloc[0]
+                        df = df.iloc[1:].reset_index(drop=True)
+                        print(f"处理后DataFrame，列数: {len(df.columns)}, 行数: {len(df)}")
+                        print(f"列名: {df.columns.tolist()}")
+                        
+                        # 存入缓存
+                        self.file_cache[file_id] = df
+                    except Exception as e:
+                        print(f"读取文件时出错: {str(e)}")
+                        import traceback
+                        print(traceback.format_exc())
+                        raise ValueError(f"无法读取文件 {file_path}: {str(e)}")
+                
+                all_data.append(df)
+            except Exception as e:
+                print(f"处理文件ID {file_id} 时出错: {str(e)}")
+                raise
+        
+        # 合并所有数据
+        if not all_data:
+            print("错误: 没有有效的数据可以合并")
+            raise ValueError("无法合并请假记录，数据为空")
+            
+        print(f"合并 {len(all_data)} 个DataFrame")
+        merged_df = pd.concat(all_data, ignore_index=True)
+        print(f"合并后DataFrame，列数: {len(merged_df.columns)}, 行数: {len(merged_df)}")
+        print(f"合并后列名: {merged_df.columns.tolist()}")
+        
+        # 清洗数据 - 删除完全为空的行
+        merged_df = merged_df.dropna(how='all')
+        print(f"删除空行后，行数: {len(merged_df)}")
+        
+        # 列出当前所有的列
+        print(f"当前所有列: {merged_df.columns.tolist()}")
+        
+        # 确定要保留的列
+        required_columns = ['请假类型', '开始时间', '结束时间', '时长', '请假事由', '创建人']
+        
+        # 检查所需列是否存在
+        available_columns = [col for col in required_columns if col in merged_df.columns]
+        
+        if available_columns:
+            # 如果有数据ID列，确保它也被保留
+            if '数据ID' in merged_df.columns or 'id' in merged_df.columns or 'ID' in merged_df.columns:
+                id_column = None
+                for possible_id in ['数据ID', 'id', 'ID']:
+                    if possible_id in merged_df.columns:
+                        id_column = possible_id
+                        break
+                
+                if id_column and id_column not in available_columns:
+                    available_columns.append(id_column)
+                    print(f"添加ID列 '{id_column}' 到保留列表")
+            
+            print(f"将保留以下列: {available_columns}")
+            merged_df = merged_df[available_columns]
+        else:
+            print(f"警告: 未找到任何所需的列 {required_columns}，将保留所有列")
+        
+        # 确定用于去重的列
+        duplicate_check_columns = []
+        
+        # 首先检查是否有数据ID列
+        id_column = None
+        for possible_id in ['数据ID', 'id', 'ID']:
+            if possible_id in merged_df.columns:
+                id_column = possible_id
+                break
+        
+        if id_column:
+            # 使用数据ID列进行去重
+            duplicate_check_columns = [id_column]
+            print(f"将使用数据ID列 '{id_column}' 进行去重")
+        else:
+            # 如果没有数据ID列，则使用开始时间、结束时间、创建人进行去重
+            for col in ['创建人', '开始时间', '结束时间']:
+                if col in merged_df.columns:
+                    duplicate_check_columns.append(col)
+            
+            if len(duplicate_check_columns) > 0:
+                print(f"未找到数据ID列，将使用 {duplicate_check_columns} 进行去重")
+            else:
+                # 如果必要的列也不存在，则使用所有列进行去重
+                print("未找到数据ID列或必要的去重列，将使用所有列进行去重")
+                duplicate_check_columns = merged_df.columns.tolist()
+        
+        # 去重前行数
+        before_count = len(merged_df)
+        
+        # 对合并后的数据进行去重
+        merged_df = merged_df.drop_duplicates(subset=duplicate_check_columns)
+        
+        # 去重后行数
+        after_count = len(merged_df)
+        print(f"去重前行数: {before_count}, 去重后行数: {after_count}, 共删除了 {before_count - after_count} 行重复数据")
+        
+        # 重置索引
+        merged_df = merged_df.reset_index(drop=True)
+        
+        # 生成输出文件名
+        today = datetime.now().strftime('%Y%m%d')
+        output_path = os.path.join(self.upload_dir, f"{today}合并请假记录.xlsx")
+        print(f"将导出到文件: {output_path}")
+        
+        # 导出到Excel文件
+        try:
+            # 导出到Excel
+            merged_df.to_excel(output_path, index=False)
+            print(f"成功导出到文件: {output_path}")
+            
+            return output_path
+        except Exception as e:
+            print(f"导出合并请假记录时出错: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise ValueError(f"导出合并请假记录失败: {str(e)}")
+
+    def convert_df_to_native_types(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """
+        将Pandas DataFrame转换为Python原生类型，处理numpy特殊类型和NaN值
+        
+        Args:
+            df: Pandas DataFrame对象
+            
+        Returns:
+            List[Dict[str, Any]]: 包含Python原生类型的记录列表
+        """
+        print("开始转换DataFrame到原生类型")
+        records = []
+
+        # 列出所有列的类型
+        column_types = {col: str(df[col].dtype) for col in df.columns}
+        print(f"DataFrame列类型: {column_types}")
+
+        # 首先将整个DataFrame转换为原生Python类型
+        df_dict = df.to_dict('records')
+
+        for idx, row_dict in enumerate(df_dict):
+            record = {}
+            for column, value in row_dict.items():
+                try:
+                    # 处理numpy类型和NaN值
+                    if pd.isna(value):
+                        record[column] = None
+                    elif isinstance(value, (pd.Timestamp, pd.Period)):
+                        record[column] = value.strftime('%Y-%m-%d %H:%M:%S')
+                    elif isinstance(value, np.integer):
+                        # 处理所有numpy整数类型
+                        record[column] = int(value)
+                    elif isinstance(value, np.floating):
+                        # 处理所有numpy浮点类型
+                        record[column] = float(value)
+                    elif isinstance(value, np.bool_):
+                        # 处理numpy布尔类型
+                        record[column] = bool(value)
+                    elif isinstance(value, np.ndarray):
+                        # 处理numpy数组
+                        record[column] = value.tolist()
+                    elif hasattr(value, 'dtype') and hasattr(value, 'item'):
+                        # 尝试使用item()方法转换numpy标量
+                        try:
+                            record[column] = value.item()
+                        except:
+                            record[column] = str(value)
+                    elif hasattr(value, 'dtype'):  # 其他numpy类型
+                        print(f"处理其他numpy类型: {column}={value}, 类型={type(value)}")
+                        # 转换不同类型的numpy数据
+                        try:
+                            if np.issubdtype(value.dtype, np.integer):
+                                record[column] = int(value)
+                            elif np.issubdtype(value.dtype, np.floating):
+                                record[column] = float(value)
+                            elif np.issubdtype(value.dtype, np.bool_):
+                                record[column] = bool(value)
+                            else:
+                                record[column] = str(value)
+                        except Exception as e:
+                            print(f"转换类型出错，列：{column}，值：{value}，类型：{type(value)}，错误：{str(e)}")
+                            record[column] = str(value)
+                    else:
+                        # 确保返回普通Python类型
+                        if isinstance(value, int) or isinstance(value, float) or isinstance(value, str) or isinstance(value, bool) or value is None:
+                            record[column] = value
+                        else:
+                            record[column] = str(value)
+                except Exception as e:
+                    print(f"转换行{idx}列{column}值{value}(类型{type(value)})时出错: {str(e)}")
+                    # 确保出错时仍能返回一个值
+                    record[column] = str(value) if value is not None else None
+            
+            # 最终检查所有值，确保没有numpy类型
+            for key, val in record.items():
+                # 如果仍然是numpy类型，强制转换为Python原生类型
+                if hasattr(val, 'dtype'):
+                    try:
+                        if isinstance(val, np.integer):
+                            record[key] = int(val)
+                        elif isinstance(val, np.floating):
+                            record[key] = float(val)
+                        elif isinstance(val, np.bool_):
+                            record[key] = bool(val)
+                        else:
+                            record[key] = str(val)
+                        print(f"最终检查修正: 列{key}值{val}(类型{type(val)})转换为{type(record[key])}")
+                    except:
+                        record[key] = str(val)
+            
+            records.append(record)
+        
+        print(f"转换完成，共处理{len(records)}条记录")
+        return records
+

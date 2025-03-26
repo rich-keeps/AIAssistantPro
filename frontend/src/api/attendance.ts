@@ -75,5 +75,18 @@ export const attendanceApi = {
             data: { file_ids: fileIds },
             responseType: 'blob'
         })
+    },
+
+    /**
+     * 导出合并后的请假记录
+     * @param fileIds 请假记录文件ID列表
+     */
+    exportMergedLeaveRecords(fileIds: string[]): Promise<AxiosResponse<Blob>> {
+        return request({
+            url: '/api/export/merged-leave',
+            method: 'post',
+            data: { file_ids: fileIds },
+            responseType: 'blob'
+        })
     }
 } 
