@@ -1,15 +1,16 @@
-import pandas as pd
-from datetime import datetime, timedelta
-import uuid
 import os
-from typing import Dict, List, Any
+import uuid
+import pandas as pd
+import numpy as np
+from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timedelta
 from models.schemas import ExcelPreview, PaginatedData
-import math
-import calendar
 from chinese_calendar import is_workday
 from services.settings_service import settings_service
-import numpy as np
+import math
+import calendar
 import json
+import traceback
 import copy
 
 class ExcelService:
@@ -90,34 +91,24 @@ class ExcelService:
         headers = []
         for col in df.columns:
             try:
-                # 获取列的数据类型
+                # 获取列的数据类型 - 简化版
                 col_type = 'string'  # 默认为字符串类型
                 
-                # 安全地获取列数据
-                col_data = df[col].copy()
-                
-                # 检查数据类型
-                if pd.api.types.is_numeric_dtype(col_data):
-                    col_type = 'number'
-                elif pd.api.types.is_datetime64_any_dtype(col_data):
-                    col_type = 'datetime'
-                
-                # 计算建议的列宽度（基于内容长度）
-                # 计算表头长度
-                header_length = len(str(col))
-                
-                # 安全地计算数据最大长度
+                # 安全检查类型，避免使用复杂的函数
                 try:
-                    data_length = col_data.astype(str).str.len().max()
-                    if pd.isna(data_length):
-                        data_length = 0
+                    # 简单类型检查
+                    sample_value = df[col].iloc[0] if len(df) > 0 else None
+                    if isinstance(sample_value, (int, float, np.number)):
+                        col_type = 'number'
+                    elif isinstance(sample_value, (pd.Timestamp, datetime)):
+                        col_type = 'datetime'
                 except:
-                    data_length = 0
+                    # 任何错误都使用默认字符串类型
+                    pass
                 
-                max_length = max(header_length, data_length)
-                
-                # 设置最小宽度100，最大宽度300
-                suggested_width = min(max(100, max_length * 15), 300)
+                # 简单计算列宽度
+                header_length = len(str(col))
+                suggested_width = min(max(100, header_length * 15), 300)
                 
                 headers.append({
                     'key': str(col),
@@ -1049,18 +1040,12 @@ class ExcelService:
             for header in headers:
                 header_dict = {}
                 for key, value in header.items():
-                    # 转换可能的numpy类型为Python原生类型
-                    if hasattr(value, 'dtype'):
-                        if np.issubdtype(value.dtype, np.integer):
-                            header_dict[key] = int(value)
-                        elif np.issubdtype(value.dtype, np.floating):
-                            header_dict[key] = float(value)
-                        elif np.issubdtype(value.dtype, np.bool_):
-                            header_dict[key] = bool(value)
-                        else:
-                            header_dict[key] = str(value)
-                    else:
+                    # 确保所有值都是基本Python类型
+                    if isinstance(value, (int, float, str, bool)) or value is None:
                         header_dict[key] = value
+                    else:
+                        # 其他所有类型转为字符串
+                        header_dict[key] = str(value)
                 result["headers"].append(header_dict)
             
             # 验证数据是否可序列化
@@ -1076,22 +1061,15 @@ class ExcelService:
                 safe_result = copy.deepcopy(result)
                 
                 def make_serializable(obj):
+                    """简单函数，将对象转换成可序列化的格式"""
                     if isinstance(obj, dict):
                         return {k: make_serializable(v) for k, v in obj.items()}
                     elif isinstance(obj, list):
                         return [make_serializable(item) for item in obj]
-                    elif hasattr(obj, 'dtype'):
-                        if np.issubdtype(obj.dtype, np.integer):
-                            return int(obj)
-                        elif np.issubdtype(obj.dtype, np.floating):
-                            return float(obj)
-                        elif np.issubdtype(obj.dtype, np.bool_):
-                            return bool(obj)
-                        else:
-                            return str(obj)
-                    elif isinstance(obj, (str, int, float, bool, type(None))):
+                    elif isinstance(obj, (int, float, str, bool)) or obj is None:
                         return obj
                     else:
+                        # 所有复杂类型都转换为字符串
                         return str(obj)
                 
                 result = make_serializable(safe_result)
@@ -1280,86 +1258,36 @@ class ExcelService:
             List[Dict[str, Any]]: 包含Python原生类型的记录列表
         """
         print("开始转换DataFrame到原生类型")
+        
+        # 直接使用to_dict转换，在后续处理中处理NaN
         records = []
-
-        # 列出所有列的类型
-        column_types = {col: str(df[col].dtype) for col in df.columns}
-        print(f"DataFrame列类型: {column_types}")
-
-        # 首先将整个DataFrame转换为原生Python类型
-        df_dict = df.to_dict('records')
-
-        for idx, row_dict in enumerate(df_dict):
-            record = {}
-            for column, value in row_dict.items():
-                try:
-                    # 处理numpy类型和NaN值
-                    if pd.isna(value):
-                        record[column] = None
-                    elif isinstance(value, (pd.Timestamp, pd.Period)):
-                        record[column] = value.strftime('%Y-%m-%d %H:%M:%S')
-                    elif isinstance(value, np.integer):
-                        # 处理所有numpy整数类型
-                        record[column] = int(value)
-                    elif isinstance(value, np.floating):
-                        # 处理所有numpy浮点类型
-                        record[column] = float(value)
-                    elif isinstance(value, np.bool_):
-                        # 处理numpy布尔类型
-                        record[column] = bool(value)
-                    elif isinstance(value, np.ndarray):
-                        # 处理numpy数组
-                        record[column] = value.tolist()
-                    elif hasattr(value, 'dtype') and hasattr(value, 'item'):
-                        # 尝试使用item()方法转换numpy标量
-                        try:
-                            record[column] = value.item()
-                        except:
-                            record[column] = str(value)
-                    elif hasattr(value, 'dtype'):  # 其他numpy类型
-                        print(f"处理其他numpy类型: {column}={value}, 类型={type(value)}")
-                        # 转换不同类型的numpy数据
-                        try:
-                            if np.issubdtype(value.dtype, np.integer):
-                                record[column] = int(value)
-                            elif np.issubdtype(value.dtype, np.floating):
-                                record[column] = float(value)
-                            elif np.issubdtype(value.dtype, np.bool_):
-                                record[column] = bool(value)
-                            else:
-                                record[column] = str(value)
-                        except Exception as e:
-                            print(f"转换类型出错，列：{column}，值：{value}，类型：{type(value)}，错误：{str(e)}")
-                            record[column] = str(value)
-                    else:
-                        # 确保返回普通Python类型
-                        if isinstance(value, int) or isinstance(value, float) or isinstance(value, str) or isinstance(value, bool) or value is None:
-                            record[column] = value
-                        else:
-                            record[column] = str(value)
-                except Exception as e:
-                    print(f"转换行{idx}列{column}值{value}(类型{type(value)})时出错: {str(e)}")
-                    # 确保出错时仍能返回一个值
-                    record[column] = str(value) if value is not None else None
-            
-            # 最终检查所有值，确保没有numpy类型
+        
+        # 将日期类型转换为字符串
+        df_copy = df.copy()
+        for col in df_copy.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 直接转换为Python字典
+        for record in df_copy.to_dict('records'):
+            # 简单的类型转换
+            clean_record = {}
             for key, val in record.items():
-                # 如果仍然是numpy类型，强制转换为Python原生类型
-                if hasattr(val, 'dtype'):
-                    try:
-                        if isinstance(val, np.integer):
-                            record[key] = int(val)
-                        elif isinstance(val, np.floating):
-                            record[key] = float(val)
-                        elif isinstance(val, np.bool_):
-                            record[key] = bool(val)
-                        else:
-                            record[key] = str(val)
-                        print(f"最终检查修正: 列{key}值{val}(类型{type(val)})转换为{type(record[key])}")
-                    except:
-                        record[key] = str(val)
+                try:
+                    # 处理NaN值
+                    if pd.isna(val):
+                        clean_record[key] = None
+                    # 处理其他类型
+                    elif isinstance(val, (int, float, bool, str)):
+                        clean_record[key] = val
+                    else:
+                        # 其他类型转为字符串
+                        clean_record[key] = str(val)
+                except:
+                    # 处理任何异常情况
+                    clean_record[key] = str(val) if val is not None else None
             
-            records.append(record)
+            records.append(clean_record)
         
         print(f"转换完成，共处理{len(records)}条记录")
         return records

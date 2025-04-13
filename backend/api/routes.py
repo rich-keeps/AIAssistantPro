@@ -40,6 +40,10 @@ async def upload_file(file: UploadFile = File(...), type: str = Query(..., descr
             data=result
         )
     except Exception as e:
+        # 详细记录错误信息
+        print(f"文件上传处理错误: {str(e)}")
+        print(traceback.format_exc())
+        
         return ProcessingResponse(
             success=False,
             message=str(e),
