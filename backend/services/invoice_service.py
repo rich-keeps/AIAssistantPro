@@ -281,15 +281,24 @@ class InvoiceService:
         try:
             # 获取OCR引擎
             ocr = self.get_ocr_engine()
-            
+            print(f"OCR引擎获取成功，开始识别图像: {image_path}")
+
             # 识别图像
             result = ocr.ocr(image_path, cls=True)
-            
+            print(f"OCR识别完成，返回结果类型: {type(result)}")
+            print(f"OCR返回结果长度: {len(result) if result else 0}")
+
+            # 调试：打印返回结果的结构
+            if result:
+                print(f"OCR结果第一层类型: {type(result[0]) if len(result) > 0 else 'Empty'}")
+                if len(result) > 0 and result[0]:
+                    print(f"OCR结果第二层类型: {type(result[0][0]) if len(result[0]) > 0 else 'Empty'}")
+
             # 提取文本和位置信息
             text_with_positions = []
-            
+
             # PaddleOCR返回格式可能因版本而异
-            if isinstance(result, list) and len(result) > 0:
+            if isinstance(result, list) and len(result) > 0 and result[0] is not None:
                 # 新版PaddleOCR
                 if isinstance(result[0], list) and len(result[0]) > 0:
                     for line in result:
