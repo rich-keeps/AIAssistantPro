@@ -98,21 +98,12 @@ class InvoiceService:
                 raise ImportError("PaddleOCR未安装，请执行 'pip install paddlepaddle paddleocr' 安装")
             
             print("初始化PaddleOCR引擎...")
-            # 使用更稳定的配置初始化PaddleOCR
+            # 使用2.7.3版本兼容的配置初始化PaddleOCR
             self.ocr_engine = PaddleOCR(
                 use_angle_cls=True,     # 启用方向分类，自动处理倾斜文本
                 lang="ch",              # 中文模型
                 use_gpu=False,          # 默认使用CPU
-                show_log=False,         # 不显示日志
-                det_db_thresh=0.3,      # 检测阈值，适当降低可以提高对模糊文本的检测
-                det_db_box_thresh=0.5,  # 检测框阈值
-                det_db_unclip_ratio=1.6,# 文本框扩张比例
-                rec_batch_num=1,        # 降低批处理大小，提高稳定性
-                cls_batch_num=1,        # 降低批处理大小，提高稳定性
-                use_mp=False,           # 禁用多进程，避免潜在的问题
-                total_process_num=1,    # 单进程处理
-                use_pdserving=False,    # 禁用PaddleServing
-                drop_score=0.5          # 设置文本识别置信度阈值
+                show_log=False          # 不显示日志
             )
             print("PaddleOCR引擎初始化完成")
         

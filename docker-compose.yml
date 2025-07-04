@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+    app:
+        build: .
+        container_name: adrian-oa-app
+        restart: unless-stopped
+        ports:
+            - '8000:8000'
+        environment:
+            - ENVIRONMENT=production
+            - DEBUG=False
+        volumes:
+            - ./uploads:/app/uploads
+            - ./data:/app/data
+            - ./logs:/app/logs
+            - static_files:/app/static
+        networks:
+            - adrian-oa-network
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    nginx:
+        image: nginx:alpine
+        container_name: adrian-oa-nginx
+        restart: unless-stopped
+        ports:
+            - '80:80'
+        volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - static_files:/app/static:ro
+        networks:
+            - adrian-oa-network
+        depends_on:
+            - app
+
+networks:
+    adrian-oa-network:
+        driver: bridge
+
+volumes:
+    uploads:
+    data:
+    logs:
+    static_files:
